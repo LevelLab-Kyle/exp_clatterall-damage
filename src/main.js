@@ -532,7 +532,7 @@ function endDrag(ev) {
   const d = drag;
   drag = null;
   canvas.classList.remove('dragging');
-  if (d.kind === 'pan') scheduleSave();
+  if (d.kind === 'pan') snapView();
   if (d.kind === 'new') {
     scene.remove(d.ghost);
     if (d.cell && canPlace(d.type, d.cell.x, d.cell.y, d.rot)) {
@@ -567,6 +567,7 @@ canvas.addEventListener('pointerdown', (ev) => {
     drag = { kind: 'move', item, grab, startX: ev.clientX, startY: ev.clientY, moved: false, cell: null };
   } else {
     select(null);
+    viewSnap = null;
     drag = { kind: 'pan', startX: ev.clientX, startY: ev.clientY, cx0: view.cx, cy0: view.cy };
   }
 });
@@ -584,7 +585,9 @@ canvas.addEventListener('contextmenu', (ev) => {
 
 canvas.addEventListener('wheel', (ev) => {
   ev.preventDefault();
-  scheduleSave();
+  viewSnap = null;
+  clearTimeout(wheelSnapTimer);
+  wheelSnapTimer = setTimeout(snapView, 150);
   if (ev.ctrlKey || ev.metaKey) {
     view.zoom = THREE.MathUtils.clamp(view.zoom * Math.exp(-ev.deltaY * 0.01), 0.25, 3);
   } else {
@@ -595,6 +598,7 @@ canvas.addEventListener('wheel', (ev) => {
 
 window.addEventListener('keydown', (ev) => {
   if (ev.key === 'r' || ev.key === 'R') rotateSelected(ev.shiftKey ? -1 : 1);
+  if (ev.key === 'h' || ev.key === 'H') homeView();
   if ((ev.key === 'Delete' || ev.key === 'Backspace') && selected && !playing) { recordEdit(); removeItem(selected); }
   if ((ev.metaKey || ev.ctrlKey) && (ev.key === 'z' || ev.key === 'Z')) {
     ev.preventDefault();
@@ -662,6 +666,7 @@ const btnClear = document.getElementById('btn-clear');
 const btnUndo = document.getElementById('btn-undo');
 const btnRedo = document.getElementById('btn-redo');
 const btnView = document.getElementById('btn-view');
+const btnHome = document.getElementById('btn-home');
 const toast = document.getElementById('toast');
 const itemTools = document.getElementById('item-tools');
 const toolRotateCcw = document.getElementById('tool-rotate-ccw');
@@ -705,6 +710,7 @@ function updateItemTools() {
   toolRotateCw.disabled = nextRotation(selected, -1) === null;
 }
 btnView.onclick = () => setMode(mode === '2d' ? '3d' : '2d');
+btnHome.onclick = homeView;
 
 for (const type of GIZMO_ORDER) {
   const def = GIZMOS[type];
@@ -742,14 +748,61 @@ function resize() {
   camera3d.aspect = w / h;
   camera3d.updateProjectionMatrix();
 }
-window.addEventListener('resize', resize);
+window.addEventListener('resize', () => { resize(); snapView(); });
 resize();
 
 const MIN_VIEW_Y = -1; // show at most one row of ground below y = 0
 
-function update2dCamera() {
+// After a pan or zoom the view eases so its bottom-left corner sits on a grid
+// line: whole cells only, never a sliver of ground.
+let viewSnap = null; // { cx, cy } target, or null
+let wheelSnapTimer = null;
+
+function viewSize() {
   const w = canvas.clientWidth / (PX_PER_UNIT * view.zoom);
   const h = canvas.clientHeight / (PX_PER_UNIT * view.zoom);
+  return { w, h };
+}
+
+// Ease the view to show the whole board (or the origin when it's empty) at
+// normal zoom.
+function homeView() {
+  view.zoom = 1;
+  let minX = Infinity, maxX = -Infinity, maxY = 0;
+  for (const item of items.values()) {
+    for (const [cx, cy] of footprintCells(item.type, item.x, item.y, item.rot)) {
+      minX = Math.min(minX, cx); maxX = Math.max(maxX, cx + 1); maxY = Math.max(maxY, cy + 1);
+    }
+  }
+  if (!items.size) { minX = 0; maxX = 16; maxY = 0; }
+  const { w, h } = viewSize();
+  const left = Math.round((minX + maxX) / 2 - w / 2);
+  const bottom = Math.max(MIN_VIEW_Y, Math.round(maxY / 2 - h / 2));
+  viewSnap = { cx: left + w / 2, cy: bottom + h / 2 };
+}
+
+function snapView() {
+  const { w, h } = viewSize();
+  const left = Math.round(view.cx - w / 2);
+  const bottom = Math.max(MIN_VIEW_Y, Math.round(view.cy - h / 2));
+  viewSnap = { cx: left + w / 2, cy: bottom + h / 2 };
+}
+
+function updateViewSnap(dt) {
+  if (!viewSnap) return;
+  const k = 1 - Math.exp(-dt * 14);
+  view.cx += (viewSnap.cx - view.cx) * k;
+  view.cy += (viewSnap.cy - view.cy) * k;
+  if (Math.abs(viewSnap.cx - view.cx) < 0.002 && Math.abs(viewSnap.cy - view.cy) < 0.002) {
+    view.cx = viewSnap.cx;
+    view.cy = viewSnap.cy;
+    viewSnap = null;
+    scheduleSave();
+  }
+}
+
+function update2dCamera() {
+  const { w, h } = viewSize();
   view.cy = Math.max(view.cy, MIN_VIEW_Y + h / 2);
   camera2d.left = -w / 2; camera2d.right = w / 2;
   camera2d.top = h / 2; camera2d.bottom = -h / 2;
@@ -763,6 +816,7 @@ function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
 
   if (playing) stepPhysics(dt); else updateTweens(dt);
+  updateViewSnap(dt);
   update2dCamera(); // also clamps the view above the ground
   if (mode === '3d') update3dCamera();
 
@@ -810,17 +864,14 @@ function loadExample(name) {
   clearBoard();
   for (const [type, x, y, rot] of ex.items) addItem(type, x, y, rot || 0);
   // Center the view on the contraption.
-  let minX = Infinity, maxX = -Infinity, maxY = 0;
-  for (const [type, x, y, rot] of ex.items) {
-    const { w, h } = footprintSize(type, rot || 0);
-    minX = Math.min(minX, x); maxX = Math.max(maxX, x + w); maxY = Math.max(maxY, y + h);
-  }
-  view.cx = (minX + maxX) / 2;
-  view.cy = maxY / 2;
+  homeView();
   examplesSelect.value = name;
 }
 
 if (!loadProgress()) loadExample('Domino Run');
+// Start exactly on the grid, no easing.
+snapView();
+if (viewSnap) { view.cx = viewSnap.cx; view.cy = viewSnap.cy; viewSnap = null; }
 window.addEventListener('beforeunload', () => { if (saveTimer) saveProgress(); });
 setMode('2d');
 frame();
