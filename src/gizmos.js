@@ -40,6 +40,18 @@ function wedgeGeometry(w, h, d) {
   return geo;
 }
 
+// Upright triangle: flat base on the bottom, point at the top (a fulcrum).
+function fulcrumGeometry(w, h, d) {
+  const shape = new THREE.Shape();
+  shape.moveTo(-w / 2, 0);
+  shape.lineTo(w / 2, 0);
+  shape.lineTo(0, h);
+  shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: d, bevelEnabled: false });
+  geo.translate(0, 0, -d / 2);
+  return geo;
+}
+
 function wedgeShape(w, h, d) {
   const hw = w / 2, hh = h / 2, hd = d / 2;
   const v = (x, y, z) => new CANNON.Vec3(x, y, z);
@@ -234,16 +246,18 @@ const GIZMOS = {
     w: 3, h: 1,
     makeMesh() {
       const g = new THREE.Group();
-      g.add(named(shadowed(new THREE.Mesh(wedgeGeometry(0.6, 0.5, 0.6), standard(0x8a7f6a))), 'base')).children[0].position.y = 0.25;
+      // Fulcrum: base on the ground, point up at the hinge (local y = 0.5).
+      g.add(named(shadowed(new THREE.Mesh(fulcrumGeometry(0.7, 0.5, 0.6), standard(0x8a7f6a))), 'base'));
       g.add(named(shadowed(new THREE.Mesh(new THREE.BoxGeometry(3, 0.16, 0.6), standard(0xf2b134))), 'plank')).children[1].position.y = 0.58;
       return g;
     },
     makeBodies(g) {
-      const base = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(0.3, 0.25, 0.3)), material: MATS.surface });
+      const base = new CANNON.Body({ mass: 0, material: MATS.surface });
+      base.addShape(new CANNON.Box(new CANNON.Vec3(0.3, 0.25, 0.3)), new CANNON.Vec3(0, 0.25, 0));
       const plank = lockToPlane(new CANNON.Body({ mass: 0.6, shape: new CANNON.Box(new CANNON.Vec3(1.5, 0.08, 0.3)), material: MATS.surface }));
       plank.angularDamping = 0.2;
       const hinge = new CANNON.HingeConstraint(base, plank, {
-        pivotA: new CANNON.Vec3(0, 0.25, 0), axisA: Z_AXIS,
+        pivotA: new CANNON.Vec3(0, 0.5, 0), axisA: Z_AXIS,
         pivotB: new CANNON.Vec3(0, -0.08, 0), axisB: Z_AXIS,
       });
       return {

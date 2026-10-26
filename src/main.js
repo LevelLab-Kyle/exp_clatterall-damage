@@ -261,6 +261,7 @@ function startPlay() {
 
 function stopPlay() {
   playing = false;
+  won = false;
   world = null;
   for (const item of items.values()) {
     item.parts = null;
