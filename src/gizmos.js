@@ -73,7 +73,21 @@ const MATS = {
   surface: new CANNON.Material('surface'),
   domino: new CANNON.Material('domino'),
   marble: new CANNON.Material('marble'),
+  bouncy: new CANNON.Material('bouncy'),
 };
+
+// Multi-part gizmos: makeMesh() returns a THREE.Group with named children,
+// and makeBodies(group) returns { parts: [{ body, mesh }], constraints }.
+// Each part's body starts at its mesh's world transform; dynamic parts drive
+// their mesh during play. mesh may be null for a body with no moving visual.
+// Optional hooks: onStep(item, world, dt) before each physics step,
+// onFrame(item, dt) after each render sync.
+function named(mesh, name) {
+  mesh.name = name;
+  return mesh;
+}
+
+const Z_AXIS = new CANNON.Vec3(0, 0, 1);
 
 const GIZMOS = {
   marble: {
@@ -176,9 +190,160 @@ const GIZMOS = {
     },
     offset: () => new THREE.Vector3(0.5, 0.5, 0),
   },
+
+  bowling: {
+    name: 'Bowling ball',
+    icon: '🎳',
+    hint: 'heavy',
+    w: 2, h: 2,
+    dynamic: true,
+    makeMesh() {
+      return shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.9, 40, 28), standard(0x3b3550, { roughness: 0.35 })));
+    },
+    makeBody() {
+      return lockToPlane(new CANNON.Body({ mass: 6, shape: new CANNON.Sphere(0.9), material: MATS.marble }));
+    },
+    offset: () => new THREE.Vector3(1, 0.9, 0),
+  },
+
+  bouncer: {
+    name: 'Bouncer',
+    icon: '🛏',
+    hint: 'boing!',
+    w: 1, h: 1,
+    makeMesh() {
+      const g = new THREE.Group();
+      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.3, 1), standard(0x6b5b95))).translateY(0.15));
+      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.14, 0.9), standard(0xff8fd8, { roughness: 0.4 }))).translateY(0.37));
+      return g;
+    },
+    makeBody() {
+      const body = new CANNON.Body({ mass: 0, material: MATS.bouncy });
+      body.addShape(new CANNON.Box(new CANNON.Vec3(0.5, 0.22, 0.5)), new CANNON.Vec3(0, 0.22, 0));
+      return body;
+    },
+    offset: () => new THREE.Vector3(0.5, 0, 0),
+  },
+
+  seesaw: {
+    name: 'Seesaw',
+    icon: '⚖️',
+    hint: 'tips',
+    w: 3, h: 1,
+    makeMesh() {
+      const g = new THREE.Group();
+      g.add(named(shadowed(new THREE.Mesh(wedgeGeometry(0.6, 0.5, 0.6), standard(0x8a7f6a))), 'base')).children[0].position.y = 0.25;
+      g.add(named(shadowed(new THREE.Mesh(new THREE.BoxGeometry(3, 0.16, 0.6), standard(0xf2b134))), 'plank')).children[1].position.y = 0.58;
+      return g;
+    },
+    makeBodies(g) {
+      const base = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(0.3, 0.25, 0.3)), material: MATS.surface });
+      const plank = lockToPlane(new CANNON.Body({ mass: 0.6, shape: new CANNON.Box(new CANNON.Vec3(1.5, 0.08, 0.3)), material: MATS.surface }));
+      plank.angularDamping = 0.2;
+      const hinge = new CANNON.HingeConstraint(base, plank, {
+        pivotA: new CANNON.Vec3(0, 0.25, 0), axisA: Z_AXIS,
+        pivotB: new CANNON.Vec3(0, -0.08, 0), axisB: Z_AXIS,
+      });
+      return {
+        parts: [{ body: base, mesh: g.getObjectByName('base') }, { body: plank, mesh: g.getObjectByName('plank') }],
+        constraints: [hinge],
+      };
+    },
+    offset: () => new THREE.Vector3(1.5, 0, 0),
+  },
+
+  fan: {
+    name: 'Fan',
+    icon: '🌀',
+    hint: 'F to flip',
+    w: 1, h: 1,
+    flippable: true,
+    push: 3.5, // reach in cells
+    makeMesh() {
+      const g = new THREE.Group();
+      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.5, 1, 0.5), standard(0x5a6b7a))).translateY(0.5));
+      const blade = named(new THREE.Group(), 'blade');
+      blade.position.set(0.32, 0.5, 0);
+      blade.rotation.y = Math.PI / 2;
+      for (let i = 0; i < 3; i++) {
+        const b = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.9, 0.04), standard(0xc7e6ff, { roughness: 0.3 })));
+        b.rotation.z = (i * Math.PI) / 3;
+        blade.add(b);
+      }
+      blade.add(new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.03, 8, 32), standard(0x5a6b7a)));
+      g.add(blade);
+      return g;
+    },
+    makeBodies() {
+      const post = new CANNON.Body({ mass: 0, material: MATS.surface });
+      post.addShape(new CANNON.Box(new CANNON.Vec3(0.25, 0.5, 0.25)), new CANNON.Vec3(0, 0.5, 0));
+      return { parts: [{ body: post, mesh: null }], constraints: [] };
+    },
+    onStep(item, world) {
+      const dir = item.flip ? -1 : 1;
+      const fx = item.x + 0.5, fy = item.y + 0.5;
+      for (const b of world.bodies) {
+        if (b.mass === 0) continue;
+        const ahead = (b.position.x - fx) * dir;
+        if (ahead < 0.4 || ahead > this.push || Math.abs(b.position.y - fy) > 0.8) continue;
+        const strength = 45 * (1 - ahead / this.push);
+        b.applyForce(new CANNON.Vec3(dir * strength * b.mass, 0, 0), b.position);
+      }
+    },
+    onFrame(item, dt) {
+      item.mesh.getObjectByName('blade').rotation.x += dt * 25;
+    },
+    offset: () => new THREE.Vector3(0.5, 0, 0),
+  },
+
+  pendulum: {
+    name: 'Pendulum',
+    icon: '🪀',
+    hint: 'swings',
+    w: 1, h: 3,
+    makeMesh() {
+      const g = new THREE.Group();
+      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.3, 0.6), standard(0x8a7f6a))).translateY(2.85));
+      const ball = named(shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.42, 32, 24), standard(0x44444c, { roughness: 0.3, metalness: 0.3 }))), 'ball');
+      ball.position.y = 0.5;
+      g.add(ball);
+      const rope = named(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1, 8), standard(0x333333)), 'rope');
+      g.add(rope);
+      return g;
+    },
+    makeBodies(g) {
+      const anchor = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(0.5, 0.15, 0.3)), material: MATS.surface });
+      const ball = lockToPlane(new CANNON.Body({ mass: 3, shape: new CANNON.Sphere(0.42), material: MATS.marble }));
+      ball.linearDamping = 0.02;
+      // Rope length: anchor sits 2.35 above the ball at rest.
+      const rope = new CANNON.PointToPointConstraint(anchor, new CANNON.Vec3(0, 0, 0), ball, new CANNON.Vec3(0, 2.35, 0));
+      return {
+        parts: [{ body: anchor, mesh: g.children[0] }, { body: ball, mesh: g.getObjectByName('ball') }],
+        constraints: [rope],
+      };
+    },
+    onFrame(item) {
+      const top = new THREE.Vector3(0, 2.85, 0);
+      const ball = item.mesh.getObjectByName('ball').position;
+      const rope = item.mesh.getObjectByName('rope');
+      const dir = new THREE.Vector3().subVectors(ball, top);
+      rope.position.copy(top).addScaledVector(dir, 0.5);
+      rope.scale.y = dir.length();
+      rope.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+    },
+    offset: () => new THREE.Vector3(0.5, 0, 0),
+  },
 };
 
-const GIZMO_ORDER = ['marble', 'domino', 'ramp', 'longramp', 'block', 'star'];
+// Rope needs drawing before play too.
+GIZMOS.pendulum._makeMesh = GIZMOS.pendulum.makeMesh;
+GIZMOS.pendulum.makeMesh = function () {
+  const g = this._makeMesh();
+  this.onFrame({ mesh: g });
+  return g;
+};
+
+const GIZMO_ORDER = ['marble', 'bowling', 'domino', 'ramp', 'longramp', 'block', 'seesaw', 'bouncer', 'fan', 'pendulum', 'star'];
 
 // World-space transform for an item placed at cell (x, y).
 function itemTransform(item) {

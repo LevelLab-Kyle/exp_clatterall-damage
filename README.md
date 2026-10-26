@@ -14,12 +14,27 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 | Move a gizmo | Drag it |
 | Delete | Right-click it, or select + `Delete` |
 | Flip a ramp | Select it and press `F` (or the Flip button). Works mid-drag too. |
-| Pan | Drag empty space, or scroll |
+| Pan | Drag empty space, or scroll. You can't scroll below the ground |
 | Zoom | `Ctrl`/`Cmd` + scroll (pinch on a trackpad) |
 | Play / Reset | Buttons, or `Space` |
 | 3D view | "3D view" button. Orbit with the mouse. Editing is 2D-only for now. |
 
 Hit the ⭐ Star with anything to win.
+
+## Gizmos
+
+| Gizmo | Size | What it does |
+|---|---|---|
+| Marble | 1×1 | Rolls and falls |
+| Bowling ball | 2×2 | Heavy. Knocks big things over |
+| Domino | 1×2 | Tips over and takes the next one with it |
+| Ramp / Long ramp | 1×1 / 2×1 | Static slope. `F` flips it |
+| Block | 1×1 | Solid cube to build on |
+| Seesaw | 3×1 | Plank on a hinge. Drop something on one end to fling the other |
+| Bouncer | 1×1 | Springy pad; marbles bounce off it |
+| Fan | 1×1 | Pushes anything up to 3 cells in front of it. `F` flips the direction |
+| Pendulum | 1×3 | Heavy ball on a rope. Swings when hit |
+| Star | 1×1 | The goal |
 
 ## How it's built
 
@@ -33,7 +48,7 @@ Hit the ⭐ Star with anything to win.
 | File | What |
 |---|---|
 | `vendor/libs.js` | Three.js + cannon-es, exposed as `THREE` and `CANNON` globals. |
-| `src/gizmos.js` | Gizmo registry. Each gizmo has `makeMesh()` (looks), `makeBody()` (physics), a footprint (`w`,`h`) and an `offset` inside its cell. |
+| `src/gizmos.js` | Gizmo registry. Each gizmo has `makeMesh()` (looks), `makeBody()` (physics), a footprint (`w`,`h`) and an `offset` inside its cell. Multi-part gizmos (seesaw, fan, pendulum) use `makeBodies(group)` to return several bodies plus constraints, and optional `onStep` / `onFrame` hooks. |
 | `src/main.js` | Scene, cameras, board state, drag/drop, play loop. |
 | `src/style.css` | Tray and buttons. |
 

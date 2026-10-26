@@ -42,7 +42,7 @@ scene.add(sun, sun.target);
 
 // Ground: a one-voxel-deep strip at y <= 0, as long as the board.
 const FLOOR_LEN = 2000;
-const FLOOR_DEPTH = 60;
+const FLOOR_DEPTH = 3;
 const floor = new THREE.Mesh(
   new THREE.BoxGeometry(FLOOR_LEN, FLOOR_DEPTH, 1),
   new THREE.MeshStandardMaterial({ color: 0x9ccf6b, roughness: 0.9 })
@@ -108,10 +108,38 @@ function applyTransform(item) {
   item.mesh.quaternion.copy(quaternion);
 }
 
+// Gizmo visuals may be a single mesh or a group; these apply to every mesh inside.
+function eachMesh(obj, fn) {
+  obj.traverse((o) => { if (o.isMesh) fn(o); });
+}
+
+function setHighlight(item, on) {
+  eachMesh(item.mesh, (m) => {
+    if (!m.material.emissive) return;
+    if (m.userData.baseEmissive === undefined) m.userData.baseEmissive = m.material.emissive.getHex();
+    m.material.emissive.setHex(on ? 0x444444 : m.userData.baseEmissive);
+  });
+}
+
+function setFaded(obj, on) {
+  eachMesh(obj, (m) => { m.material.transparent = on; m.material.opacity = on ? 0.5 : 1; });
+}
+
+// Remember where every sub-part sits so Reset can put moving parts back.
+function storeRest(obj) {
+  obj.traverse((o) => { o.userData.rest = { p: o.position.clone(), q: o.quaternion.clone() }; });
+}
+
+function restoreRest(obj) {
+  obj.traverse((o) => { if (o.userData.rest) { o.position.copy(o.userData.rest.p); o.quaternion.copy(o.userData.rest.q); } });
+}
+
 function addItem(type, x, y, flip = false) {
-  const item = { id: nextId++, type, x, y, flip, mesh: GIZMOS[type].makeMesh(), body: null };
+  const item = { id: nextId++, type, x, y, flip, mesh: GIZMOS[type].makeMesh(), parts: null };
   items.set(item.id, item);
   footprintCells(type, x, y).forEach(([cx, cy]) => occupied.set(key(cx, cy), item.id));
+  storeRest(item.mesh);
+  setHighlight(item, false); // records each mesh's base glow
   applyTransform(item);
   item.mesh.userData.itemId = item.id;
   scene.add(item.mesh);
@@ -134,9 +162,9 @@ function removeItem(item) {
 }
 
 function select(item) {
-  if (selected) selected.mesh.material.emissive?.set(selected.type === 'star' ? 0x332800 : 0x000000);
+  if (selected) setHighlight(selected, false);
   selected = item;
-  if (selected) selected.mesh.material.emissive?.set(0x444444);
+  if (selected) setHighlight(selected, true);
 }
 
 function clearBoard() {
@@ -165,19 +193,31 @@ function startPlay() {
   world.addContactMaterial(new CANNON.ContactMaterial(MATS.domino, MATS.domino, { friction: 0.0, restitution: 0.1 }));
   world.addContactMaterial(new CANNON.ContactMaterial(MATS.marble, MATS.surface, { friction: 0.4, restitution: 0.1 }));
   world.addContactMaterial(new CANNON.ContactMaterial(MATS.marble, MATS.domino, { friction: 0.0, restitution: 0.1 }));
+  world.addContactMaterial(new CANNON.ContactMaterial(MATS.marble, MATS.bouncy, { friction: 0.3, restitution: 0.95 }));
+  world.addContactMaterial(new CANNON.ContactMaterial(MATS.domino, MATS.bouncy, { friction: 0.3, restitution: 0.6 }));
 
   const ground = new CANNON.Body({ mass: 0, shape: new CANNON.Plane(), material: MATS.surface });
   ground.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
   world.addBody(ground);
 
+  scene.updateMatrixWorld(true);
+  const wp = new THREE.Vector3(), wq = new THREE.Quaternion();
   for (const item of items.values()) {
     const def = GIZMOS[item.type];
-    const body = def.makeBody();
-    body.position.copy(item.mesh.position);
-    body.quaternion.copy(item.mesh.quaternion);
-    item.body = body;
-    world.addBody(body);
-    if (def.goal) body.addEventListener('collide', () => onGoalHit(item));
+    const built = def.makeBodies
+      ? def.makeBodies(item.mesh)
+      : { parts: [{ body: def.makeBody(), mesh: item.mesh }], constraints: [] };
+    for (const part of built.parts) {
+      const src = part.mesh || item.mesh;
+      src.getWorldPosition(wp);
+      src.getWorldQuaternion(wq);
+      part.body.position.copy(wp);
+      part.body.quaternion.copy(wq);
+      world.addBody(part.body);
+    }
+    built.constraints.forEach((c) => world.addConstraint(c));
+    item.parts = built.parts;
+    if (def.goal) built.parts[0].body.addEventListener('collide', () => onGoalHit(item));
   }
 
   playing = true;
@@ -190,9 +230,10 @@ function stopPlay() {
   playing = false;
   world = null;
   for (const item of items.values()) {
-    item.body = null;
+    item.parts = null;
+    restoreRest(item.mesh);
     applyTransform(item);
-    if (item.type === 'star') item.mesh.material.emissive.set(0x332800);
+    setHighlight(item, false);
   }
   document.body.classList.remove('playing');
   btnPlay.hidden = false;
@@ -208,12 +249,36 @@ function onGoalHit(star) {
   toast.hidden = false;
 }
 
+const _invQ = new THREE.Quaternion();
+const _bodyQ = new THREE.Quaternion();
+function syncPart(item, part) {
+  const target = part.mesh;
+  if (target === item.mesh) {
+    target.position.copy(part.body.position);
+    target.quaternion.copy(part.body.quaternion);
+    return;
+  }
+  // Sub-part: convert the body's world transform into the group's local space.
+  const group = item.mesh;
+  target.position.copy(part.body.position);
+  group.worldToLocal(target.position);
+  // Copy into a THREE quaternion first: THREE's multiply reads private fields
+  // that a cannon-es quaternion doesn't have (you get NaN otherwise).
+  const q = part.body.quaternion;
+  _bodyQ.set(q.x, q.y, q.z, q.w);
+  _invQ.copy(group.quaternion).invert();
+  target.quaternion.copy(_invQ).multiply(_bodyQ);
+}
+
 function stepPhysics(dt) {
+  for (const item of items.values()) GIZMOS[item.type].onStep?.(item, world, dt);
   world.step(1 / 60, dt, 4);
   for (const item of items.values()) {
-    if (!item.body || item.body.mass === 0) continue;
-    item.mesh.position.copy(item.body.position);
-    item.mesh.quaternion.copy(item.body.quaternion);
+    if (!item.parts) continue;
+    for (const part of item.parts) {
+      if (part.mesh && part.body.mass > 0) syncPart(item, part);
+    }
+    GIZMOS[item.type].onFrame?.(item, dt);
   }
 }
 
@@ -245,16 +310,18 @@ function pickItem(ev) {
   pointerNdc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
   raycaster.setFromCamera(pointerNdc, activeCamera());
   const meshes = [...items.values()].map((i) => i.mesh);
-  const hit = raycaster.intersectObjects(meshes, false)[0];
-  return hit ? items.get(hit.object.userData.itemId) : null;
+  const hit = raycaster.intersectObjects(meshes, true)[0];
+  if (!hit) return null;
+  let o = hit.object;
+  while (o && o.userData.itemId == null) o = o.parent;
+  return o ? items.get(o.userData.itemId) : null;
 }
 
 let drag = null; // { kind: 'new'|'move'|'pan', ... }
 
 function beginNewDrag(type, ev) {
   const ghost = GIZMOS[type].makeMesh();
-  ghost.material = ghostMat;
-  ghost.castShadow = false;
+  eachMesh(ghost, (m) => { m.material = ghostMat; m.castShadow = false; });
   ghost.visible = false;
   scene.add(ghost);
   drag = { kind: 'new', type, ghost, flip: false, cell: null };
@@ -278,7 +345,7 @@ function updateDrag(ev) {
     drag.ghost.visible = !!cell;
     if (cell) {
       const ok = canPlace(drag.type, cell.x, cell.y);
-      drag.ghost.material = ok ? ghostMat : ghostBadMat;
+      eachMesh(drag.ghost, (m) => { m.material = ok ? ghostMat : ghostBadMat; });
       const { position, quaternion } = itemTransform({ type: drag.type, x: cell.x, y: cell.y, flip: drag.flip });
       drag.ghost.position.copy(position);
       drag.ghost.quaternion.copy(quaternion);
@@ -289,8 +356,7 @@ function updateDrag(ev) {
       const ok = canPlace(drag.item.type, cell.x, cell.y, drag.item.id);
       const { position } = itemTransform({ ...drag.item, x: cell.x, y: cell.y });
       drag.item.mesh.position.copy(position);
-      drag.item.mesh.material.opacity = ok ? 1 : 0.5;
-      drag.item.mesh.material.transparent = !ok;
+      setFaded(drag.item.mesh, !ok);
     }
   }
 }
@@ -304,8 +370,7 @@ function endDrag(ev) {
     scene.remove(d.ghost);
     if (d.cell && canPlace(d.type, d.cell.x, d.cell.y)) select(addItem(d.type, d.cell.x, d.cell.y, d.flip));
   } else if (d.kind === 'move') {
-    d.item.mesh.material.opacity = 1;
-    d.item.mesh.material.transparent = false;
+    setFaded(d.item.mesh, false);
     if (d.moved && d.cell && canPlace(d.item.type, d.cell.x, d.cell.y, d.item.id)) {
       moveItem(d.item, d.cell.x, d.cell.y);
     } else {
@@ -421,9 +486,12 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
+const MIN_VIEW_Y = -1; // show at most one row of ground below y = 0
+
 function update2dCamera() {
   const w = canvas.clientWidth / (PX_PER_UNIT * view.zoom);
   const h = canvas.clientHeight / (PX_PER_UNIT * view.zoom);
+  view.cy = Math.max(view.cy, MIN_VIEW_Y + h / 2);
   camera2d.left = -w / 2; camera2d.right = w / 2;
   camera2d.top = h / 2; camera2d.bottom = -h / 2;
   camera2d.position.set(view.cx, view.cy, 20);
