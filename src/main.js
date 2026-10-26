@@ -166,8 +166,9 @@ function restoreRest(obj) {
   obj.traverse((o) => { if (o.userData.rest) { o.position.copy(o.userData.rest.p); o.quaternion.copy(o.userData.rest.q); } });
 }
 
-function addItem(type, x, y, rot = 0) {
-  const item = { id: nextId++, type, x, y, rot, mesh: GADGETS[type].makeMesh(), parts: null };
+function addItem(type, x, y, rot = 0, flip = false) {
+  const item = { id: nextId++, type, x, y, rot, flip, parts: null };
+  item.mesh = GADGETS[type].makeMesh(item);
   items.set(item.id, item);
   footprintCells(type, x, y, rot).forEach(([cx, cy]) => occupied.set(key(cx, cy), item.id));
   applyTransform(item);
@@ -179,11 +180,23 @@ function addItem(type, x, y, rot = 0) {
   return item;
 }
 
-function moveItem(item, x, y, rot = item.rot) {
+function moveItem(item, x, y, rot = item.rot, flip = item.flip) {
   footprintCells(item.type, item.x, item.y, item.rot).forEach(([cx, cy]) => occupied.delete(key(cx, cy)));
   item.x = x;
   item.y = y;
   item.rot = rot;
+  if (flip !== item.flip) {
+    // A mirrored shape needs its own geometry: rebuild the mesh in place.
+    item.flip = flip;
+    scene.remove(item.mesh);
+    tweens.delete(item.mesh);
+    item.mesh = GADGETS[item.type].makeMesh(item);
+    item.mesh.userData.itemId = item.id;
+    scene.add(item.mesh);
+    storeRest(item.mesh);
+    setHighlight(item, false);
+    if (selected === item) outlinePass.selectedObjects = [item.mesh];
+  }
   footprintCells(item.type, x, y, rot).forEach(([cx, cy]) => occupied.set(key(cx, cy), item.id));
   applyTransform(item);
   scheduleSave();
@@ -215,7 +228,7 @@ const history = { undo: [], redo: [] };
 const HISTORY_LIMIT = 100;
 
 function snapshot() {
-  return [...items.values()].map((i) => ({ type: i.type, x: i.x, y: i.y, rot: i.rot }));
+  return [...items.values()].map((i) => ({ type: i.type, x: i.x, y: i.y, rot: i.rot, flip: !!i.flip }));
 }
 
 // Call before changing the board.
@@ -229,7 +242,7 @@ function recordEdit() {
 function restore(snap) {
   finishTweens();
   clearBoard();
-  for (const s of snap) addItem(s.type, s.x, s.y, s.rot);
+  for (const s of snap) addItem(s.type, s.x, s.y, s.rot, s.flip);
 }
 
 function undo() {
@@ -283,7 +296,7 @@ function loadProgress() {
   if (!data || !Array.isArray(data.items)) return false;
   clearBoard();
   for (const s of data.items) {
-    if (GADGETS[s.type] && canPlace(s.type, s.x, s.y, s.rot || 0)) addItem(s.type, s.x, s.y, s.rot || 0);
+    if (GADGETS[s.type] && canPlace(s.type, s.x, s.y, s.rot || 0)) addItem(s.type, s.x, s.y, s.rot || 0, !!s.flip);
   }
   if (data.view) { view.cx = data.view.cx; view.cy = data.view.cy; view.zoom = data.view.zoom; }
   if (data.mode === '3d') setMode('3d');
@@ -333,7 +346,7 @@ function startPlay() {
     const def = GADGETS[item.type];
     const built = def.makeBodies
       ? def.makeBodies(item.mesh)
-      : { parts: [{ body: def.makeBody(), mesh: item.mesh }], constraints: [] };
+      : { parts: [{ body: def.makeBody(item), mesh: item.mesh }], constraints: [] };
     for (const part of built.parts) {
       const src = part.mesh || item.mesh;
       src.getWorldPosition(wp);
@@ -518,6 +531,44 @@ function updateTweens(dt) {
 function finishTweens() {
   for (const [mesh, tw] of tweens) { mesh.position.copy(tw.to); mesh.quaternion.copy(tw.toQ); }
   tweens.clear();
+  for (const anim of mirrorAnims) endMirrorAnim(anim);
+  mirrorAnims.length = 0;
+}
+
+// A flip shown as a mirror: a stand-in copy of the piece squashes through
+// its center along the flipped axis and comes out reversed, while the real
+// (already flipped) piece stays hidden until it's done.
+const mirrorAnims = []; // { item, stand, axis, t }
+const MIRROR_SECONDS = 0.22;
+
+function startMirrorAnim(item, axis, before, center) {
+  const stand = new THREE.Group();
+  stand.position.copy(center);
+  const copy = before.mesh;
+  copy.position.copy(before.position).sub(center);
+  copy.quaternion.copy(before.quaternion);
+  stand.add(copy);
+  scene.add(stand);
+  item.mesh.visible = false;
+  if (selected === item) outlinePass.selectedObjects = [stand];
+  mirrorAnims.push({ item, stand, axis, t: 0 });
+}
+
+function endMirrorAnim(anim) {
+  scene.remove(anim.stand);
+  anim.item.mesh.visible = true;
+  if (selected === anim.item) outlinePass.selectedObjects = [anim.item.mesh];
+}
+
+function updateMirrorAnims(dt) {
+  for (let i = mirrorAnims.length - 1; i >= 0; i--) {
+    const anim = mirrorAnims[i];
+    anim.t = Math.min(1, anim.t + dt / MIRROR_SECONDS);
+    // Scale from 1 through 0 to -1 along the flipped world axis.
+    const s = Math.cos(anim.t * Math.PI);
+    if (anim.axis === 'h') anim.stand.scale.x = s; else anim.stand.scale.y = s;
+    if (anim.t >= 1) { endMirrorAnim(anim); mirrorAnims.splice(i, 1); }
+  }
 }
 
 function pickItem(ev) {
@@ -658,6 +709,7 @@ canvas.addEventListener('wheel', (ev) => {
 
 window.addEventListener('keydown', (ev) => {
   if (ev.key === 'r' || ev.key === 'R') rotateSelected(ev.shiftKey ? -1 : 1);
+  if (ev.key === 'f' || ev.key === 'F') flipSelected(ev.shiftKey ? 'v' : 'h');
   if (ev.key === 'h' || ev.key === 'H') homeView();
   if ((ev.key === 'Delete' || ev.key === 'Backspace') && selected && !playing) { recordEdit(); removeItem(selected); }
   if ((ev.metaKey || ev.ctrlKey) && (ev.key === 'z' || ev.key === 'Z')) {
@@ -680,6 +732,35 @@ function nextRotation(item, dir) {
     : ((item.rot || 0) + dir + 4) % 4;
   if (rot === (item.rot || 0)) return null;
   return canPlace(item.type, item.x, item.y, rot, item.id) ? rot : null;
+}
+
+// What flipping `item` across the vertical ('h') or horizontal ('v') axis
+// would give, as { rot, flip }, or null when the gadget is symmetric that
+// way or the result wouldn't fit.
+function nextFlip(item, axis) {
+  const def = GADGETS[item.type];
+  const fn = axis === 'h' ? def.flipH : def.flipV;
+  if (!fn) return null;
+  const change = fn(item);
+  if (!change) return null;
+  const next = { rot: change.rot ?? (item.rot || 0), flip: change.flip ?? !!item.flip };
+  if (next.rot === (item.rot || 0) && next.flip === !!item.flip) return null;
+  return canPlace(item.type, item.x, item.y, next.rot, item.id) ? next : null;
+}
+
+function flipSelected(axis) {
+  if (!selected || playing) return;
+  const next = nextFlip(selected, axis);
+  if (!next) return;
+  recordEdit();
+  // Every flip is shown as a mirror about the piece's footprint center: a
+  // copy of the piece as it was shrinks through that center along the
+  // flipped axis and expands out reversed.
+  const { w, h } = footprintSize(selected.type, selected.rot);
+  const center = new THREE.Vector3(selected.x + w / 2, selected.y + h / 2, 0);
+  const before = { mesh: selected.mesh.clone(), position: selected.mesh.position.clone(), quaternion: selected.mesh.quaternion.clone() };
+  moveItem(selected, selected.x, selected.y, next.rot, next.flip);
+  startMirrorAnim(selected, axis, before, center);
 }
 
 // Turn the selected (or being-dragged) gadget a quarter turn.
@@ -731,6 +812,8 @@ const toast = document.getElementById('toast');
 const itemTools = document.getElementById('item-tools');
 const toolRotateCcw = document.getElementById('tool-rotate-ccw');
 const toolRotateCw = document.getElementById('tool-rotate-cw');
+const toolFlipH = document.getElementById('tool-flip-h');
+const toolFlipV = document.getElementById('tool-flip-v');
 const toolDelete = document.getElementById('tool-delete');
 const trayList = document.getElementById('gadget-list');
 
@@ -744,6 +827,8 @@ btnUndo.onclick = undo;
 btnRedo.onclick = redo;
 toolRotateCcw.onclick = () => rotateSelected(1);
 toolRotateCw.onclick = () => rotateSelected(-1);
+toolFlipH.onclick = () => flipSelected('h');
+toolFlipV.onclick = () => flipSelected('v');
 toolDelete.onclick = () => { if (selected && !playing) { recordEdit(); removeItem(selected); } };
 // Clicks on the floating tools must not reach the board underneath.
 itemTools.addEventListener('pointerdown', (ev) => ev.stopPropagation());
@@ -769,8 +854,11 @@ function updateItemTools() {
   const x = THREE.MathUtils.clamp(sumX / 8, 50, w - 50);
   const y = THREE.MathUtils.clamp(minY - 10, 56, h);
   itemTools.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
-  toolRotateCcw.disabled = nextRotation(selected, 1) === null;
-  toolRotateCw.disabled = nextRotation(selected, -1) === null;
+  // Actions that don't apply are hidden, not greyed out.
+  toolRotateCcw.hidden = nextRotation(selected, 1) === null;
+  toolRotateCw.hidden = nextRotation(selected, -1) === null;
+  toolFlipH.hidden = nextFlip(selected, 'h') === null;
+  toolFlipV.hidden = nextFlip(selected, 'v') === null;
 }
 btnView.onclick = () => setMode(mode === '2d' ? '3d' : '2d');
 btnHome.onclick = homeView;
@@ -910,7 +998,7 @@ function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(clock.getDelta(), 0.05);
 
-  if (playing) stepPhysics(dt); else updateTweens(dt);
+  if (playing) stepPhysics(dt); else { updateTweens(dt); updateMirrorAnims(dt); }
   updateViewSnap(dt);
   update2dCamera(); // also clamps the view above the ground
   if (mode === '3d') update3dCamera();

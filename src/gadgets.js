@@ -43,11 +43,12 @@ function edged(mesh) {
 }
 
 // Right-triangle prism: high edge on the left, sloping down to the right.
-function wedgeGeometry(w, h, d) {
+// `mirror` puts the right angle at the bottom-right instead (a flipped wedge).
+function wedgeGeometry(w, h, d, mirror = false) {
   const shape = new THREE.Shape();
   shape.moveTo(0, 0);
   shape.lineTo(w, 0);
-  shape.lineTo(0, h);
+  shape.lineTo(mirror ? w : 0, h);
   shape.closePath();
   const geo = new THREE.ExtrudeGeometry(shape, { depth: d, bevelEnabled: false });
   geo.translate(-w / 2, -h / 2, -d / 2);
@@ -66,21 +67,23 @@ function fulcrumGeometry(w, h, d) {
   return geo;
 }
 
-function wedgeShape(w, h, d) {
+function wedgeShape(w, h, d, mirror = false) {
   const hw = w / 2, hh = h / 2, hd = d / 2;
-  const v = (x, y, z) => new CANNON.Vec3(x, y, z);
+  const sx = mirror ? -1 : 1; // mirror across x: negate x and reverse face winding
+  const v = (x, y, z) => new CANNON.Vec3(x * sx, y, z);
   const vertices = [
     v(-hw, -hh, -hd), v(hw, -hh, -hd), v(-hw, hh, -hd),
     v(-hw, -hh, hd), v(hw, -hh, hd), v(-hw, hh, hd),
   ];
   // Faces wound counter-clockwise when viewed from outside.
-  const faces = [
+  let faces = [
     [0, 1, 4, 3], // bottom
     [0, 2, 1],    // back
     [3, 4, 5],    // front
     [0, 3, 5, 2], // left (tall side)
     [1, 2, 5, 4], // slope
   ];
+  if (mirror) faces = faces.map((f) => [...f].reverse());
   return new CANNON.ConvexPolyhedron({ vertices, faces });
 }
 
@@ -151,6 +154,9 @@ const GADGETS = {
     hint: 'rotates',
     w: 1, h: 1,
     rotatable: true,
+    // A 1x1 wedge's mirror image is one of its own rotations.
+    flipH: (item) => ({ rot: (5 - (item.rot || 0)) % 4 }),
+    flipV: (item) => ({ rot: (7 - (item.rot || 0)) % 4 }),
     makeMesh() {
       return shadowed(new THREE.Mesh(wedgeGeometry(1, 1, 1), standard(COLORS.ramp)));
     },
@@ -165,11 +171,14 @@ const GADGETS = {
     hint: 'rotates',
     w: 2, h: 1,
     rotatable: true,
-    makeMesh() {
-      return shadowed(new THREE.Mesh(wedgeGeometry(2, 1, 1), standard(COLORS.ramp)));
+    // A 2x1 wedge mirrored is a genuinely new shape, so it carries a mirror flag.
+    flipH: (item) => ({ flip: !item.flip }),
+    flipV: (item) => ({ flip: !item.flip, rot: ((item.rot || 0) + 2) % 4 }),
+    makeMesh(item) {
+      return shadowed(new THREE.Mesh(wedgeGeometry(2, 1, 1, !!item?.flip), standard(COLORS.ramp)));
     },
-    makeBody() {
-      return new CANNON.Body({ mass: 0, shape: wedgeShape(2, 1, 1), material: MATS.surface });
+    makeBody(item) {
+      return new CANNON.Body({ mass: 0, shape: wedgeShape(2, 1, 1, !!item?.flip), material: MATS.surface });
     },
     offset: () => new THREE.Vector3(1, 0.5, 0),
   },
@@ -231,6 +240,7 @@ const GADGETS = {
     hint: 'boing!',
     w: 1, h: 1,
     rotatable: true,
+    flipV: (item) => ({ rot: ((item.rot || 0) + 2) % 4 }),
     makeMesh() {
       const g = new THREE.Group();
       g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.3, 1), standard(0x6b5b95))).translateY(0.15));
@@ -279,6 +289,8 @@ const GADGETS = {
     w: 1, h: 1,
     rotatable: true,
     push: 3.5, // reach in cells
+    flipH: (item) => ((item.rot || 0) % 2 === 0 ? { rot: ((item.rot || 0) + 2) % 4 } : null),
+    flipV: (item) => ((item.rot || 0) % 2 === 1 ? { rot: ((item.rot || 0) + 2) % 4 } : null),
     makeMesh() {
       const g = new THREE.Group();
       g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.5, 1, 0.5), standard(0x5a6b7a))).translateY(0.5));
@@ -330,6 +342,7 @@ const GADGETS = {
     // a time, up to two either side (rot is -2..2). At each level the ball's
     // outer edge sits on that column's far grid line (about 27° and 62°).
     rotatable: true,
+    flipH: (item) => (item.rot ? { rot: -item.rot } : null),
     rope: 2.35,
     ballRadius: 0.42,
     swing: { min: -2, max: 2 },

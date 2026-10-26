@@ -14,6 +14,7 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 | Move a gadget | Drag it. The selected gadget gets a blue outline, same as the platform builder |
 | Delete | Right-click it, or select + `Delete` |
 | Rotate | Select a gadget and use the ↺ / ↻ buttons next to it, or `R` (counter-clockwise) / `Shift+R` (clockwise). Turns 90° at a time; works mid-drag too. Ramps get all four orientations; the fan blows in the direction it faces. |
+| Flip | ⇔ / ⇕ buttons next to the selected gadget, or `F` (left-right) / `Shift+F` (up-down). Only shown where it changes something: ramps, the fan (reverses its direction), the pendulum (mirrors the swing), the bouncer (upside-down). |
 | Pan | Drag empty space, or scroll. The view settles onto whole cells and never goes below the ground |
 | Zoom | `Ctrl`/`Cmd` + scroll (pinch on a trackpad) |
 | Home | ⌂ button or `H`: recenter on the whole contraption at normal zoom |
