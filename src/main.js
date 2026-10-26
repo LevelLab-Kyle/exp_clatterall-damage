@@ -494,7 +494,7 @@ canvas.addEventListener('wheel', (ev) => {
 }, { passive: false });
 
 window.addEventListener('keydown', (ev) => {
-  if (ev.key === 'f' || ev.key === 'F' || ev.key === 'r' || ev.key === 'R') rotateSelected(ev.shiftKey ? -1 : 1);
+  if (ev.key === 'r' || ev.key === 'R') rotateSelected(ev.shiftKey ? -1 : 1);
   if ((ev.key === 'Delete' || ev.key === 'Backspace') && selected && !playing) removeItem(selected);
   if (ev.key === 'Escape') select(null);
   if (ev.key === ' ') { ev.preventDefault(); playing ? stopPlay() : startPlay(); }
@@ -523,8 +523,6 @@ function rotateSelected(dir = 1) {
 
 const btnPlay = document.getElementById('btn-play');
 const btnReset = document.getElementById('btn-reset');
-const btnRotateCcw = document.getElementById('btn-rotate-ccw');
-const btnRotateCw = document.getElementById('btn-rotate-cw');
 const btnClear = document.getElementById('btn-clear');
 const btnView = document.getElementById('btn-view');
 const toast = document.getElementById('toast');
@@ -536,8 +534,6 @@ const trayList = document.getElementById('gizmo-list');
 
 btnPlay.onclick = startPlay;
 btnReset.onclick = stopPlay;
-btnRotateCcw.onclick = () => rotateSelected(1);
-btnRotateCw.onclick = () => rotateSelected(-1);
 btnClear.onclick = () => { if (!playing) clearBoard(); };
 toolRotateCcw.onclick = () => rotateSelected(1);
 toolRotateCw.onclick = () => rotateSelected(-1);

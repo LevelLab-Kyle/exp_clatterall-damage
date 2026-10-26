@@ -125,7 +125,7 @@ const GIZMOS = {
   ramp: {
     name: 'Ramp',
     icon: '◢',
-    hint: 'F rotates',
+    hint: 'rotates',
     w: 1, h: 1,
     rotatable: true,
     makeMesh() {
@@ -140,7 +140,7 @@ const GIZMOS = {
   longramp: {
     name: 'Long ramp',
     icon: '◢◢',
-    hint: 'F rotates',
+    hint: 'rotates',
     w: 2, h: 1,
     rotatable: true,
     makeMesh() {
@@ -257,7 +257,7 @@ const GIZMOS = {
   fan: {
     name: 'Fan',
     icon: '🌀',
-    hint: 'F rotates',
+    hint: 'rotates',
     w: 1, h: 1,
     rotatable: true,
     push: 3.5, // reach in cells
