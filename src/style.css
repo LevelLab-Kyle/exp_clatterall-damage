@@ -60,6 +60,8 @@ button {
 button:hover { background: #fbf7f0; }
 button:active { transform: scale(0.96); }
 button.big { font-size: 18px; padding: 10px 22px; }
+button:disabled { opacity: 0.4; cursor: default; }
+button:disabled:hover { background: #fff; }
 button.primary {
   background: var(--accent);
   color: var(--accent-ink);

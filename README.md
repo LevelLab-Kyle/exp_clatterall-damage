@@ -17,6 +17,7 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 | Pan | Drag empty space, or scroll. You can't scroll below the ground |
 | Zoom | `Ctrl`/`Cmd` + scroll (pinch on a trackpad) |
 | Play / Reset | Buttons, or `Space` |
+| Undo / Redo | Buttons, or `Cmd/Ctrl+Z` / `Shift+Cmd/Ctrl+Z` (also `Ctrl+Y`). Covers placing, moving, rotating, deleting and Clear |
 | 3D view | "3D view" button. Fixed tilted camera; pan, zoom and editing work the same as the flat view |
 
 Hit the ⭐ Star with anything to win.

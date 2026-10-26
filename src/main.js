@@ -204,6 +204,50 @@ function clearBoard() {
 }
 
 // ---------------------------------------------------------------------------
+// Undo / redo: a snapshot of the board is taken before every edit.
+// ---------------------------------------------------------------------------
+
+const history = { undo: [], redo: [] };
+const HISTORY_LIMIT = 100;
+
+function snapshot() {
+  return [...items.values()].map((i) => ({ type: i.type, x: i.x, y: i.y, rot: i.rot }));
+}
+
+// Call before changing the board.
+function recordEdit() {
+  history.undo.push(snapshot());
+  if (history.undo.length > HISTORY_LIMIT) history.undo.shift();
+  history.redo.length = 0;
+  updateHistoryButtons();
+}
+
+function restore(snap) {
+  finishTweens();
+  clearBoard();
+  for (const s of snap) addItem(s.type, s.x, s.y, s.rot);
+}
+
+function undo() {
+  if (playing || !history.undo.length) return;
+  history.redo.push(snapshot());
+  restore(history.undo.pop());
+  updateHistoryButtons();
+}
+
+function redo() {
+  if (playing || !history.redo.length) return;
+  history.undo.push(snapshot());
+  restore(history.redo.pop());
+  updateHistoryButtons();
+}
+
+function updateHistoryButtons() {
+  btnUndo.disabled = playing || !history.undo.length;
+  btnRedo.disabled = playing || !history.redo.length;
+}
+
+// ---------------------------------------------------------------------------
 // Physics
 // ---------------------------------------------------------------------------
 
@@ -255,6 +299,7 @@ function startPlay() {
 
   playing = true;
   document.body.classList.add('playing');
+  updateHistoryButtons();
   btnPlay.hidden = true;
   btnReset.hidden = false;
 }
@@ -270,6 +315,7 @@ function stopPlay() {
     setHighlight(item, false);
   }
   document.body.classList.remove('playing');
+  updateHistoryButtons();
   btnPlay.hidden = false;
   btnReset.hidden = true;
   toast.hidden = true;
@@ -440,6 +486,7 @@ function endDrag(ev) {
   if (d.kind === 'new') {
     scene.remove(d.ghost);
     if (d.cell && canPlace(d.type, d.cell.x, d.cell.y, d.rot)) {
+      recordEdit();
       const item = addItem(d.type, d.cell.x, d.cell.y, d.rot);
       settle(item, d.ghost.position);
       select(item);
@@ -448,6 +495,7 @@ function endDrag(ev) {
     setFaded(d.item.mesh, false);
     const from = d.item.mesh.position.clone();
     if (d.moved && d.cell && canPlace(d.item.type, d.cell.x, d.cell.y, d.item.rot, d.item.id)) {
+      if (d.cell.x !== d.item.x || d.cell.y !== d.item.y) recordEdit();
       moveItem(d.item, d.cell.x, d.cell.y);
     } else {
       applyTransform(d.item);
@@ -481,7 +529,7 @@ canvas.addEventListener('contextmenu', (ev) => {
   ev.preventDefault();
   if (playing) return;
   const item = pickItem(ev);
-  if (item) removeItem(item);
+  if (item) { recordEdit(); removeItem(item); }
 });
 
 canvas.addEventListener('wheel', (ev) => {
@@ -496,7 +544,12 @@ canvas.addEventListener('wheel', (ev) => {
 
 window.addEventListener('keydown', (ev) => {
   if (ev.key === 'r' || ev.key === 'R') rotateSelected(ev.shiftKey ? -1 : 1);
-  if ((ev.key === 'Delete' || ev.key === 'Backspace') && selected && !playing) removeItem(selected);
+  if ((ev.key === 'Delete' || ev.key === 'Backspace') && selected && !playing) { recordEdit(); removeItem(selected); }
+  if ((ev.metaKey || ev.ctrlKey) && (ev.key === 'z' || ev.key === 'Z')) {
+    ev.preventDefault();
+    ev.shiftKey ? redo() : undo();
+  }
+  if ((ev.metaKey || ev.ctrlKey) && ev.key === 'y') { ev.preventDefault(); redo(); }
   if (ev.key === 'Escape') select(null);
   if (ev.key === ' ') { ev.preventDefault(); playing ? stopPlay() : startPlay(); }
 });
@@ -514,6 +567,7 @@ function rotateSelected(dir = 1) {
   if (!canPlace(selected.type, selected.x, selected.y, rot, selected.id)) return;
   const from = selected.mesh.position.clone();
   const fromQ = selected.mesh.quaternion.clone();
+  recordEdit();
   moveItem(selected, selected.x, selected.y, rot);
   settle(selected, from, fromQ); // turns and slides into the cell together
 }
@@ -525,6 +579,8 @@ function rotateSelected(dir = 1) {
 const btnPlay = document.getElementById('btn-play');
 const btnReset = document.getElementById('btn-reset');
 const btnClear = document.getElementById('btn-clear');
+const btnUndo = document.getElementById('btn-undo');
+const btnRedo = document.getElementById('btn-redo');
 const btnView = document.getElementById('btn-view');
 const toast = document.getElementById('toast');
 const itemTools = document.getElementById('item-tools');
@@ -535,10 +591,12 @@ const trayList = document.getElementById('gizmo-list');
 
 btnPlay.onclick = startPlay;
 btnReset.onclick = stopPlay;
-btnClear.onclick = () => { if (!playing) clearBoard(); };
+btnClear.onclick = () => { if (!playing && items.size) { recordEdit(); clearBoard(); } };
+btnUndo.onclick = undo;
+btnRedo.onclick = redo;
 toolRotateCcw.onclick = () => rotateSelected(1);
 toolRotateCw.onclick = () => rotateSelected(-1);
-toolDelete.onclick = () => { if (selected && !playing) removeItem(selected); };
+toolDelete.onclick = () => { if (selected && !playing) { recordEdit(); removeItem(selected); } };
 // Clicks on the floating tools must not reach the board underneath.
 itemTools.addEventListener('pointerdown', (ev) => ev.stopPropagation());
 
