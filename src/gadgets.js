@@ -103,7 +103,14 @@ const MATS = {
   domino: new CANNON.Material('domino'),
   marble: new CANNON.Material('marble'),
   bouncy: new CANNON.Material('bouncy'),
+  bell: new CANNON.Material('bell'),
 };
+
+// Direction a gadget "faces" after rot quarter turns: local +x turned.
+function facing(item) {
+  const a = (item.rot || 0) * Math.PI / 2;
+  return { dx: Math.cos(a), dy: Math.sin(a), ux: -Math.sin(a), uy: Math.cos(a) };
+}
 
 // Multi-part gadgets: makeMesh() returns a THREE.Group with named children,
 // and makeBodies(group) returns { parts: [{ body, mesh }], constraints }.
@@ -402,6 +409,181 @@ const GADGETS = {
     },
     offset: () => new THREE.Vector3(0.5, 0, 0),
   },
+
+  conveyor: {
+    name: 'Conveyor',
+    hint: 'carries',
+    w: 2, h: 1,
+    rotatable: true,
+    flipH: (item) => ((item.rot || 0) % 2 === 0 ? { rot: ((item.rot || 0) + 2) % 4 } : null),
+    flipV: (item) => ((item.rot || 0) % 2 === 1 ? { rot: ((item.rot || 0) + 2) % 4 } : null),
+    speed: 3,
+    makeMesh() {
+      const g = new THREE.Group();
+      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(2, 0.3, 0.8), standard(0x3d3d46))).translateY(0.15));
+      // Rollers along the top spin to show the direction.
+      for (let i = 0; i < 5; i++) {
+        const r = named(shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.84, 12), standard(0xffb545, { roughness: 0.5 }))), 'roller');
+        r.rotation.x = Math.PI / 2;
+        r.position.set(-0.8 + i * 0.4, 0.3, 0);
+        g.add(r);
+      }
+      return g;
+    },
+    makeBody() {
+      const body = new CANNON.Body({ mass: 0, material: MATS.surface });
+      body.addShape(new CANNON.Box(new CANNON.Vec3(1, 0.2, 0.4)), new CANNON.Vec3(0, 0.2, 0));
+      return body;
+    },
+    onStep(item, world) {
+      // Anything resting just above the belt gets pulled toward the belt speed.
+      const f = facing(item);
+      const cx = item.x + (footprintSize(item.type, item.rot).w) / 2;
+      const cy = item.y + (footprintSize(item.type, item.rot).h) / 2;
+      // Local frame: along = belt direction, up = away from the belt surface.
+      for (const b of world.bodies) {
+        if (b.mass === 0) continue;
+        const rx = b.position.x - cx, ry = b.position.y - cy;
+        const along = rx * f.dx + ry * f.dy;
+        const up = rx * f.ux + ry * f.uy;
+        if (Math.abs(along) > 1.1 || up < -0.1 || up > 0.9) continue;
+        const v = b.velocity.x * f.dx + b.velocity.y * f.dy;
+        const push = (this.speed - v) * 8 * b.mass;
+        b.applyForce(new CANNON.Vec3(f.dx * push, f.dy * push, 0));
+      }
+    },
+    onFrame(item, dt) {
+      item.mesh.traverse((o) => { if (o.name === 'roller') o.rotation.y -= dt * this.speed / 0.11; });
+    },
+    offset: () => new THREE.Vector3(1, 0, 0),
+  },
+
+  launcher: {
+    name: 'Launcher',
+    hint: 'fires on play',
+    w: 1, h: 1,
+    rotatable: true,
+    delay: 0.4,
+    kick: 14,
+    makeMesh() {
+      const g = new THREE.Group();
+      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.25, 0.8), standard(0x5a4a6a))).translateY(0.125));
+      const plate = named(shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 0.7), standard(0xff5a5a, { roughness: 0.4 }))), 'plate');
+      plate.position.y = 0.31;
+      g.add(plate);
+      // A little arrow on the plate shows which way it fires (local +y, i.e. up).
+      const arrow = shadowed(new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.22, 4), standard(0xffe08a)));
+      arrow.position.y = 0.5;
+      arrow.rotation.y = Math.PI / 4;
+      g.add(arrow);
+      return g;
+    },
+    makeBody() {
+      const body = new CANNON.Body({ mass: 0, material: MATS.surface });
+      body.addShape(new CANNON.Box(new CANNON.Vec3(0.5, 0.19, 0.4)), new CANNON.Vec3(0, 0.19, 0));
+      return body;
+    },
+    onStep(item, world) {
+      if (world.time < this.delay) { item.armed = true; return; }
+      if (!item.armed) return;
+      item.armed = false;
+      item.popT = 0;
+      // Fire along local "up" (the plate's normal), turned by the rotation.
+      const f = facing(item);
+      const cx = item.x + 0.5, cy = item.y + 0.5;
+      for (const b of world.bodies) {
+        if (b.mass === 0) continue;
+        const rx = b.position.x - cx, ry = b.position.y - cy;
+        const along = rx * f.dx + ry * f.dy;
+        const up = rx * f.ux + ry * f.uy;
+        if (Math.abs(along) > 0.6 || up < -0.2 || up > 1.4) continue;
+        b.applyImpulse(new CANNON.Vec3(f.ux * this.kick * b.mass, f.uy * this.kick * b.mass, 0));
+      }
+    },
+    onFrame(item, dt) {
+      if (item.popT === undefined) return;
+      item.popT += dt;
+      const plate = item.mesh.getObjectByName('plate');
+      const k = Math.max(0, 1 - item.popT * 4); // quick pop then settle
+      plate.position.y = 0.31 + Math.sin(Math.min(1, item.popT * 4) * Math.PI) * 0.35 * (k + 0.2);
+      if (item.popT > 0.5) { plate.position.y = 0.31; delete item.popT; }
+    },
+    offset: () => new THREE.Vector3(0.5, 0, 0),
+  },
+
+  bell: {
+    name: 'Bell',
+    hint: 'rings',
+    w: 1, h: 1,
+    idleFrame: true,
+    makeMesh() {
+      const g = new THREE.Group();
+      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.12, 0.5), standard(0x8a7f6a))).translateY(0.94));
+      const swing = named(new THREE.Group(), 'swing');
+      swing.position.y = 0.88;
+      const cup = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.36, 0.55, 16), standard(0xf5c542, { roughness: 0.3, metalness: 0.4 })));
+      cup.position.y = -0.33;
+      swing.add(cup);
+      const clapper = shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), standard(0x333333)));
+      clapper.position.y = -0.64;
+      swing.add(clapper);
+      g.add(swing);
+      return g;
+    },
+    makeBody() {
+      const body = new CANNON.Body({ mass: 0, material: MATS.bell });
+      body.addShape(new CANNON.Sphere(0.34), new CANNON.Vec3(0, 0.5, 0));
+      return body;
+    },
+    // Set by the game when something hits the bell: starts the swing.
+    ring(item) { item.swingT = 0; },
+    onFrame(item, dt) {
+      if (item.swingT === undefined) return;
+      item.swingT += dt;
+      const swing = item.mesh.getObjectByName('swing');
+      swing.rotation.z = Math.sin(item.swingT * 18) * 0.25 * Math.exp(-item.swingT * 3);
+      if (item.swingT > 1.5) { swing.rotation.z = 0; delete item.swingT; }
+    },
+    offset: () => new THREE.Vector3(0.5, 0, 0),
+  },
+
+  plank: {
+    name: 'Plank',
+    hint: 'loose board',
+    w: 3, h: 1,
+    rotatable: true,
+    dynamic: true,
+    makeMesh() {
+      return shadowed(new THREE.Mesh(new THREE.BoxGeometry(3, 0.16, 0.6), standard(0xc98f4a)));
+    },
+    makeBody() {
+      return lockToPlane(new CANNON.Body({ mass: 0.5, shape: new CANNON.Box(new CANNON.Vec3(1.5, 0.08, 0.3)), material: MATS.surface }));
+    },
+    offset: () => new THREE.Vector3(1.5, 0.08, 0),
+  },
+
+  bucket: {
+    name: 'Bucket',
+    hint: 'catches',
+    w: 1, h: 1,
+    rotatable: true,
+    makeMesh() {
+      const g = new THREE.Group();
+      const mat = standard(0x4f7fa8);
+      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.1, 0.8), mat)).translateY(0.05));
+      const left = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.1, 1, 0.8), mat)); left.position.set(-0.45, 0.5, 0); g.add(left);
+      const right = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.1, 1, 0.8), mat)); right.position.set(0.45, 0.5, 0); g.add(right);
+      return g;
+    },
+    makeBody() {
+      const body = new CANNON.Body({ mass: 0, material: MATS.surface });
+      body.addShape(new CANNON.Box(new CANNON.Vec3(0.5, 0.05, 0.4)), new CANNON.Vec3(0, 0.05, 0));
+      body.addShape(new CANNON.Box(new CANNON.Vec3(0.05, 0.5, 0.4)), new CANNON.Vec3(-0.45, 0.5, 0));
+      body.addShape(new CANNON.Box(new CANNON.Vec3(0.05, 0.5, 0.4)), new CANNON.Vec3(0.45, 0.5, 0));
+      return body;
+    },
+    offset: () => new THREE.Vector3(0.5, 0, 0),
+  },
 };
 
 // Rope needs drawing before play too.
@@ -412,7 +594,7 @@ GADGETS.pendulum.makeMesh = function () {
   return g;
 };
 
-const GADGET_ORDER = ['marble', 'bowling', 'domino', 'ramp', 'longramp', 'block', 'seesaw', 'bouncer', 'fan', 'pendulum', 'star'];
+const GADGET_ORDER = ['marble', 'bowling', 'domino', 'plank', 'ramp', 'longramp', 'block', 'bucket', 'seesaw', 'bouncer', 'conveyor', 'launcher', 'fan', 'pendulum', 'bell', 'star'];
 
 // Footprint size after `rot` quarter turns (odd turns swap width and height).
 function footprintSize(type, rot = 0) {

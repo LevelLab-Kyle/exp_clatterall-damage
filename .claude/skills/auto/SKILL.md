@@ -36,7 +36,9 @@ class H(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header('Cache-Control', 'no-store'); super().end_headers()
     def log_message(self, *a): pass
-http.server.ThreadingHTTPServer(('127.0.0.1', 8077), H).serve_forever()
+class S(http.server.ThreadingHTTPServer):
+    request_queue_size = 64  # a page load opens more than the default 5 connections at once
+S(('127.0.0.1', 8077), H).serve_forever()
 EOF
 ```
 

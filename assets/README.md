@@ -10,3 +10,4 @@ To swap or add one, drop the raw `.glb` / `.mp3` files in a folder and run `pyth
 | `thud` | Thud | Universfield | — | https://pixabay.com/sound-effects/film-special-effects-thud-291047/ | `c435c940` |
 | `boing` | Boing Boing Bounce | humordome | — | https://pixabay.com/sound-effects/boing-boing-bounce-454474/ | `2778ef70` |
 | `win` | Short Success Sound Glockenspiel Treasure Video Game | freesound_community | — | https://pixabay.com/sound-effects/film-special-effects-short-success-sound-glockenspiel-treasure-video-game-6346/ | `001f299e` |
+| `ding` | Ding - Small Bell SFX | OxidVideos | — | https://pixabay.com/sound-effects/film-special-effects-ding-small-bell-sfx-233008/ | `d70407f7` |

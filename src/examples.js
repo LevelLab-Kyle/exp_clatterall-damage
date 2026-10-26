@@ -58,4 +58,38 @@ const EXAMPLES = {
       ['star', 13, 5],
     ],
   },
+
+  'Launch & Catch': {
+    blurb: 'A launcher shoots the marble off a ledge onto a conveyor, which drops it into a bucket with the star.',
+    items: [
+      ['block', 1, 0], ['block', 1, 1], ['block', 2, 0], ['block', 2, 1],
+      ['launcher', 1, 2, 3], ['marble', 2, 2],
+      ['block', 4, 0], ['block', 5, 0], ['conveyor', 4, 1],
+      ['bucket', 6, 0], ['star', 6, 1],
+      ['block', 7, 0], ['block', 7, 1],
+    ],
+  },
+
+  'Plank Bridge': {
+    blurb: 'The marble rolls down a ramp, across a loose plank bridge, and off the end into a row of dominoes.',
+    items: [
+      ['block', 0, 0], ['block', 0, 1], ['block', 0, 2],
+      ['block', 1, 0], ['block', 1, 1], ['block', 1, 2],
+      ['block', 2, 0], ['block', 2, 1], ['block', 3, 0], ['block', 3, 1],
+      ['longramp', 2, 2], ['marble', 2, 3],
+      ['block', 4, 0], ['block', 4, 1], ['plank', 4, 2],
+      ['block', 6, 0], ['block', 6, 1],
+      ['domino', 9, 0], ['domino', 10, 0], ['domino', 11, 0],
+      ['star', 13, 0],
+    ],
+  },
+
+  'Bell Ringer': {
+    blurb: 'A pendulum, pulled back two columns, swings into a bell and the star behind it.',
+    items: [
+      ['pendulum', 6, 1, 2],
+      ['bell', 8, 2],
+      ['star', 8, 1],
+    ],
+  },
 };

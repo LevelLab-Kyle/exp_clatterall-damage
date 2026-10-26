@@ -355,6 +355,7 @@ function startPlay() {
       part.body.quaternion.copy(wq);
       world.addBody(part.body);
       if (part.body.mass > 0) part.body.addEventListener('collide', (ev) => onImpact(part.body, ev));
+      if (def.ring) part.body.addEventListener('collide', (ev) => onBellHit(item, ev));
     }
     built.constraints.forEach((c) => world.addConstraint(c));
     item.parts = built.parts;
@@ -421,6 +422,16 @@ function playSound(key, volume = 1) {
   a.play().catch(() => {});
 }
 
+function onBellHit(item, ev) {
+  const speed = Math.abs(ev.contact.getImpactVelocityAlongNormal());
+  if (speed < 1) return;
+  const now = performance.now();
+  if (now - (lastImpact.get(item) || 0) < 250) return;
+  lastImpact.set(item, now);
+  GADGETS[item.type].ring(item);
+  playSound('ding', Math.min(1, 0.4 + speed / 10));
+}
+
 // Pick a sound for a collision by what hit what, scaled by how hard.
 function onImpact(body, ev) {
   if (!audioArmed || !soundOn) return;
@@ -430,6 +441,7 @@ function onImpact(body, ev) {
   if (now - (lastImpact.get(body) || 0) < 90) return;
   lastImpact.set(body, now);
   const other = ev.body;
+  if (other.material === MATS.bell) return; // the bell rings instead
   const bouncy = body.material === MATS.bouncy || other.material === MATS.bouncy;
   const heavy = body.mass >= 3 || other.mass >= 3;
   playSound(bouncy ? 'boing' : heavy ? 'thud' : 'tap', Math.min(1, 0.2 + speed / 12));
@@ -891,6 +903,13 @@ const thumbnailer = (() => {
     return r.domElement.toDataURL('image/png');
   };
 })();
+
+// A plain mouse wheel scrolls the tray sideways (trackpads already do).
+trayList.addEventListener('wheel', (ev) => {
+  if (Math.abs(ev.deltaY) <= Math.abs(ev.deltaX)) return;
+  ev.preventDefault();
+  trayList.scrollLeft += ev.deltaY;
+}, { passive: false });
 
 function buildTray() {
 for (const type of GADGET_ORDER) {

@@ -191,6 +191,7 @@ select:focus { outline: none; border-color: var(--color-accent); }
   height: 100%;
   display: grid;
   grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr); /* let the tray scroll instead of widening the page */
 }
 
 #topbar {
@@ -254,6 +255,7 @@ select:focus { outline: none; border-color: var(--color-accent); }
 
 /* Gadget tray */
 #tray {
+  min-width: 0;
   background: var(--color-surface);
   border-top: var(--border-width) var(--border-style) var(--color-border);
   padding: var(--space-2);
@@ -268,8 +270,16 @@ select:focus { outline: none; border-color: var(--color-accent); }
 #gadget-list {
   display: flex;
   gap: var(--space-2);
+  min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: var(--space-1);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-light) transparent;
 }
+#gadget-list::-webkit-scrollbar { height: 6px; }
+#gadget-list::-webkit-scrollbar-track { background: transparent; }
+#gadget-list::-webkit-scrollbar-thumb { background: var(--color-border-light); border-radius: 3px; }
 
 .gadget-card {
   flex: 0 0 auto;

@@ -26,7 +26,7 @@ Hit the ⭐ Star with anything to win.
 
 Your board, view and chosen example are saved in the browser (localStorage) as you work, and come back when you reopen the page.
 
-The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, Seesaw Launch, Fan Elevator, Wrecking Ball, Bounce Alley). They live in `src/examples.js` as plain lists of `[type, x, y, rot]`.
+The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, Seesaw Launch, Fan Elevator, Wrecking Ball, Bounce Alley, Launch & Catch, Plank Bridge, Bell Ringer). They live in `src/examples.js` as plain lists of `[type, x, y, rot]`.
 
 ## Gadgets
 
@@ -41,6 +41,11 @@ The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, 
 | Bouncer | 1×1 | Springy pad; marbles bounce off it |
 | Fan | 1×1 | Pushes anything up to 3 cells in the direction it faces. Rotate to aim it |
 | Pendulum | 1×3 | Heavy ball on a rope. Swings when hit. Rotate swings the ball out one column at a time (up to two) left or right to start it off |
+| Plank | 3×1 | Loose board — bridges gaps, falls when pushed |
+| Bucket | 1×1 | Catches a marble (the bowling ball won't fit) |
+| Conveyor | 2×1 | Carries whatever sits on it. Rotate / flip to set the direction |
+| Launcher | 1×1 | Fires whatever is on it shortly after Play, in the direction it faces |
+| Bell | 1×1 | Rings and swings when hit |
 | Star | 1×1 | The goal |
 
 ## How it's built
