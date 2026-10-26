@@ -340,6 +340,13 @@ const GIZMOS = {
       const a = rot ? this.swingAngle(rot) : 0;
       return new THREE.Vector3(Math.sin(a) * this.rope, 2.85 - Math.cos(a) * this.rope, 0);
     },
+    // Only the anchor and the ball take up cells (the rope doesn't), so the
+    // footprint moves with the swing level: swinging the ball out can change
+    // which cells the pendulum needs to be free.
+    footprint(rot = 0) {
+      const b = this.ballRest(rot); // relative to the group origin (x + 0.5, y)
+      return [[0, 2], [Math.floor(b.x + 0.5), Math.floor(b.y)]];
+    },
     applyRot(item) {
       const ball = item.mesh.getObjectByName('ball');
       ball.position.copy(this.ballRest(item.rot || 0));
@@ -414,6 +421,8 @@ function itemTransform(item) {
 }
 
 function footprintCells(type, x, y, rot = 0) {
+  const def = GIZMOS[type];
+  if (def.footprint) return def.footprint(rot).map(([i, j]) => [x + i, y + j]);
   const { w, h } = footprintSize(type, rot);
   const cells = [];
   for (let i = 0; i < w; i++) {

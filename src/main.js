@@ -560,6 +560,19 @@ window.addEventListener('keydown', (ev) => {
   if (ev.key === ' ') { ev.preventDefault(); playing ? stopPlay() : startPlay(); }
 });
 
+// The rotation `item` would end up with after a step in `dir`, or null if it
+// can't rotate that way (not rotatable, at the swing limit, or the turned
+// footprint doesn't fit).
+function nextRotation(item, dir) {
+  const def = GIZMOS[item.type];
+  if (!def.rotatable) return null;
+  const rot = def.swing
+    ? THREE.MathUtils.clamp((item.rot || 0) + dir, def.swing.min, def.swing.max)
+    : ((item.rot || 0) + dir + 4) % 4;
+  if (rot === (item.rot || 0)) return null;
+  return canPlace(item.type, item.x, item.y, rot, item.id) ? rot : null;
+}
+
 // Turn the selected (or being-dragged) gizmo a quarter turn.
 // dir = +1 counter-clockwise, -1 clockwise.
 function rotateSelected(dir = 1) {
@@ -573,24 +586,20 @@ function rotateSelected(dir = 1) {
     }
     return;
   }
-  if (!selected || playing || !GIZMOS[selected.type].rotatable) return;
+  if (!selected || playing) return;
   const def = GIZMOS[selected.type];
+  const rot = nextRotation(selected, dir);
+  if (rot === null) return;
   if (def.swing) {
-    const rot = THREE.MathUtils.clamp((selected.rot || 0) + dir, def.swing.min, def.swing.max);
-    if (rot === selected.rot) return;
     recordEdit();
-    selected.rot = rot;
     const ball = selected.mesh.getObjectByName('ball');
     const from = ball.position.clone();
-    def.applyRot(selected);
+    moveItem(selected, selected.x, selected.y, rot); // updates occupancy, puts the ball at its new rest
     const to = ball.position.clone();
     ball.position.copy(from);
     tweens.set(ball, { from, to, t: 0, fromQ: null, toQ: ball.quaternion.clone() });
     return;
   }
-  const rot = (selected.rot + dir + 4) % 4;
-  // The turned footprint has to fit where it stands.
-  if (!canPlace(selected.type, selected.x, selected.y, rot, selected.id)) return;
   const from = selected.mesh.position.clone();
   const fromQ = selected.mesh.quaternion.clone();
   recordEdit();
@@ -647,7 +656,8 @@ function updateItemTools() {
   const x = THREE.MathUtils.clamp(sumX / 8, 50, w - 50);
   const y = THREE.MathUtils.clamp(minY - 10, 56, h);
   itemTools.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
-  toolRotateCcw.disabled = toolRotateCw.disabled = !GIZMOS[selected.type].rotatable;
+  toolRotateCcw.disabled = nextRotation(selected, 1) === null;
+  toolRotateCw.disabled = nextRotation(selected, -1) === null;
 }
 btnView.onclick = () => setMode(mode === '2d' ? '3d' : '2d');
 
