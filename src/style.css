@@ -45,6 +45,18 @@ html, body {
 
 .controls { display: flex; gap: 8px; }
 
+.examples { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; }
+.examples select {
+  font: inherit;
+  font-weight: 800;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  border: 2px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+
 button {
   font: inherit;
   font-weight: 800;

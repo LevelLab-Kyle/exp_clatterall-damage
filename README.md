@@ -22,6 +22,8 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 
 Hit the ⭐ Star with anything to win.
 
+The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, Seesaw Launch, Fan Elevator, Wrecking Ball, Bounce Alley). They live in `src/examples.js` as plain lists of `[type, x, y, rot]`.
+
 ## Gizmos
 
 | Gizmo | Size | What it does |

@@ -277,6 +277,12 @@ function startPlay() {
   ground.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
   world.addBody(ground);
 
+  // Gadget forces (fan etc.) run inside each physics sub-step, never per
+  // frame: at 120 Hz a frame may run no sub-step, and forces would pile up.
+  world.addEventListener('preStep', () => {
+    for (const item of items.values()) GIZMOS[item.type].onStep?.(item, world, world.dt);
+  });
+
   scene.updateMatrixWorld(true);
   const wp = new THREE.Vector3(), wq = new THREE.Quaternion();
   for (const item of items.values()) {
@@ -351,7 +357,6 @@ function syncPart(item, part) {
 }
 
 function stepPhysics(dt) {
-  for (const item of items.values()) GIZMOS[item.type].onStep?.(item, world, dt);
   world.step(1 / 60, dt, 4);
   for (const item of items.values()) {
     if (!item.parts) continue;
@@ -704,19 +709,37 @@ function frame() {
 }
 
 // ---------------------------------------------------------------------------
-// Starter contraption so the board isn't empty
+// Examples (src/examples.js)
 // ---------------------------------------------------------------------------
 
-function loadStarter() {
-  for (let y = 0; y < 3; y++) addItem('block', 2, y);
-  addItem('block', 3, 0); addItem('block', 3, 1);
-  addItem('block', 4, 0); addItem('block', 4, 1);
-  addItem('longramp', 3, 2);
-  addItem('marble', 3, 4);
-  for (let x = 7; x <= 11; x++) addItem('domino', x, 0);
-  addItem('star', 13, 0);
+const examplesSelect = document.getElementById('examples');
+for (const name of Object.keys(EXAMPLES)) {
+  const opt = document.createElement('option');
+  opt.value = name;
+  opt.textContent = name;
+  opt.title = EXAMPLES[name].blurb;
+  examplesSelect.appendChild(opt);
+}
+examplesSelect.onchange = () => loadExample(examplesSelect.value);
+
+function loadExample(name) {
+  const ex = EXAMPLES[name];
+  if (!ex) return;
+  if (playing) stopPlay();
+  if (items.size) recordEdit();
+  clearBoard();
+  for (const [type, x, y, rot] of ex.items) addItem(type, x, y, rot || 0);
+  // Center the view on the contraption.
+  let minX = Infinity, maxX = -Infinity, maxY = 0;
+  for (const [type, x, y, rot] of ex.items) {
+    const { w, h } = footprintSize(type, rot || 0);
+    minX = Math.min(minX, x); maxX = Math.max(maxX, x + w); maxY = Math.max(maxY, y + h);
+  }
+  view.cx = (minX + maxX) / 2;
+  view.cy = maxY / 2;
+  examplesSelect.value = name;
 }
 
-loadStarter();
+loadExample('Domino Run');
 setMode('2d');
 frame();
