@@ -1,0 +1,42 @@
+# Gizmo Garage
+
+Prototype of a kids' Rube Goldberg builder. Drag gizmos onto a voxel board, press Play, watch it go.
+
+## Run
+
+Open `index.html` in a browser. No build step, no server, no internet needed.
+
+## Controls
+
+| Action | How |
+|---|---|
+| Place a gizmo | Drag a card from the tray onto the board |
+| Move a gizmo | Drag it |
+| Delete | Right-click it, or select + `Delete` |
+| Flip a ramp | Select it and press `F` (or the Flip button). Works mid-drag too. |
+| Pan | Drag empty space, or scroll |
+| Zoom | `Ctrl`/`Cmd` + scroll (pinch on a trackpad) |
+| Play / Reset | Buttons, or `Space` |
+| 3D view | "3D view" button. Orbit with the mouse. Editing is 2D-only for now. |
+
+Hit the ⭐ Star with anything to win.
+
+## How it's built
+
+- **Plain HTML/CSS/JS.** Three.js and cannon-es are bundled once into `vendor/libs.js` (see `vendor/README.md` to upgrade them). Game code is classic `<script>` files, no modules, no bundler.
+- The world is a true 3D voxel grid (`x`, `y`, one cell deep in `z`). The "2D" view is just an orthographic camera looking at it side-on; the 3D view is a perspective camera on the same scene. Tilt-shift will be a post-process on the 3D camera.
+- The board is infinite. Ground is at `y = 0`; nothing can go below it.
+- Physics runs only while playing. Bodies are created from placed items on Play and thrown away on Reset. Dynamic bodies are locked to the X/Y plane.
+
+### Files
+
+| File | What |
+|---|---|
+| `vendor/libs.js` | Three.js + cannon-es, exposed as `THREE` and `CANNON` globals. |
+| `src/gizmos.js` | Gizmo registry. Each gizmo has `makeMesh()` (looks), `makeBody()` (physics), a footprint (`w`,`h`) and an `offset` inside its cell. |
+| `src/main.js` | Scene, cameras, board state, drag/drop, play loop. |
+| `src/style.css` | Tray and buttons. |
+
+### Swapping in real 3D assets
+
+Each gizmo's `makeMesh()` returns any `THREE.Object3D`. Replace the placeholder geometry with a loaded GLTF (scaled to fit the footprint, origin at the cell center + `offset`) and nothing else needs to change. `makeBody()` stays as the simple collision shape.

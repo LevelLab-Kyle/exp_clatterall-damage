@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gizmo Garage</title>
+    <link rel="stylesheet" href="src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header id="topbar">
+        <div class="brand">Gizmo Garage</div>
+        <div class="controls">
+          <button id="btn-play" class="big primary">▶ Play</button>
+          <button id="btn-reset" class="big" hidden>↺ Reset</button>
+          <button id="btn-flip" title="Flip the selected ramp (F)">⇄ Flip</button>
+          <button id="btn-clear" title="Remove everything">🗑 Clear</button>
+          <button id="btn-view" title="Switch between flat and 3D views">3D view</button>
+        </div>
+      </header>
+
+      <div id="stage">
+        <canvas id="scene"></canvas>
+        <div id="toast" hidden></div>
+      </div>
+
+      <footer id="tray">
+        <div class="tray-label">Drag a gizmo onto the board</div>
+        <div id="gizmo-list"></div>
+      </footer>
+    </div>
+    <script src="vendor/libs.js"></script>
+    <script src="src/gizmos.js"></script>
+    <script src="src/main.js"></script>
+  </body>
+</html>
