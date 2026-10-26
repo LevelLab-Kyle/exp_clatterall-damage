@@ -157,6 +157,7 @@ function moveItem(item, x, y) {
 function removeItem(item) {
   footprintCells(item.type, item.x, item.y).forEach(([cx, cy]) => occupied.delete(key(cx, cy)));
   items.delete(item.id);
+  tweens.delete(item.mesh);
   scene.remove(item.mesh);
   if (selected === item) select(null);
 }
@@ -180,6 +181,7 @@ let won = false;
 
 function startPlay() {
   select(null);
+  finishTweens();
   won = false;
   // No sleeping: a slowly leaning domino wouldn't wake a sleeping neighbour.
   // Pieces are about a metre big, so real gravity feels sluggish. Crank it up for a toy feel.
@@ -298,11 +300,38 @@ function pointerToWorld(ev) {
   return raycaster.ray.intersectPlane(boardPlane, hit) ? hit : null;
 }
 
-function pointerToCell(ev, def) {
+// Where the dragged gizmo floats (un-snapped) and the cell it would land in.
+// `grab` is the pointer-to-anchor offset so a picked-up item doesn't jump.
+function dragTarget(ev, def, grab) {
   const p = pointerToWorld(ev);
   if (!p) return null;
-  // Center the footprint under the pointer.
-  return { x: Math.floor(p.x - def.w / 2 + 0.5), y: Math.floor(p.y - def.h / 2 + 0.5) };
+  const ax = grab ? p.x + grab.x : p.x - def.w / 2;
+  const ay = grab ? p.y + grab.y : p.y - def.h / 2;
+  return { ax, ay, x: Math.round(ax), y: Math.round(ay) };
+}
+
+// Short ease-out slide from wherever a gizmo was dropped into its cell.
+const tweens = new Map(); // mesh -> { from, to, t }
+const SNAP_SECONDS = 0.18;
+
+function settle(item, fromPosition) {
+  const to = item.mesh.position.clone();
+  item.mesh.position.copy(fromPosition);
+  tweens.set(item.mesh, { from: fromPosition.clone(), to, t: 0 });
+}
+
+function updateTweens(dt) {
+  for (const [mesh, tw] of tweens) {
+    tw.t = Math.min(1, tw.t + dt / SNAP_SECONDS);
+    const k = 1 - Math.pow(1 - tw.t, 3);
+    mesh.position.lerpVectors(tw.from, tw.to, k);
+    if (tw.t >= 1) tweens.delete(mesh);
+  }
+}
+
+function finishTweens() {
+  for (const [mesh, tw] of tweens) mesh.position.copy(tw.to);
+  tweens.clear();
 }
 
 function pickItem(ev) {
@@ -325,7 +354,7 @@ function beginNewDrag(type, ev) {
   ghost.visible = false;
   scene.add(ghost);
   drag = { kind: 'new', type, ghost, flip: false, cell: null };
-  ev.target.setPointerCapture?.(ev.pointerId);
+  try { ev.target.setPointerCapture(ev.pointerId); } catch {}
   updateDrag(ev);
 }
 
@@ -339,14 +368,14 @@ function updateDrag(ev) {
     return;
   }
   const def = GIZMOS[drag.kind === 'new' ? drag.type : drag.item.type];
-  const cell = pointerToCell(ev, def);
+  const cell = dragTarget(ev, def, drag.grab);
   drag.cell = cell;
   if (drag.kind === 'new') {
     drag.ghost.visible = !!cell;
     if (cell) {
       const ok = canPlace(drag.type, cell.x, cell.y);
       eachMesh(drag.ghost, (m) => { m.material = ok ? ghostMat : ghostBadMat; });
-      const { position, quaternion } = itemTransform({ type: drag.type, x: cell.x, y: cell.y, flip: drag.flip });
+      const { position, quaternion } = itemTransform({ type: drag.type, x: cell.ax, y: cell.ay, flip: drag.flip });
       drag.ghost.position.copy(position);
       drag.ghost.quaternion.copy(quaternion);
     }
@@ -354,7 +383,7 @@ function updateDrag(ev) {
     if (Math.hypot(ev.clientX - drag.startX, ev.clientY - drag.startY) > 4) drag.moved = true;
     if (drag.moved && cell) {
       const ok = canPlace(drag.item.type, cell.x, cell.y, drag.item.id);
-      const { position } = itemTransform({ ...drag.item, x: cell.x, y: cell.y });
+      const { position } = itemTransform({ ...drag.item, x: cell.ax, y: cell.ay });
       drag.item.mesh.position.copy(position);
       setFaded(drag.item.mesh, !ok);
     }
@@ -368,14 +397,20 @@ function endDrag(ev) {
   canvas.classList.remove('dragging');
   if (d.kind === 'new') {
     scene.remove(d.ghost);
-    if (d.cell && canPlace(d.type, d.cell.x, d.cell.y)) select(addItem(d.type, d.cell.x, d.cell.y, d.flip));
+    if (d.cell && canPlace(d.type, d.cell.x, d.cell.y)) {
+      const item = addItem(d.type, d.cell.x, d.cell.y, d.flip);
+      settle(item, d.ghost.position);
+      select(item);
+    }
   } else if (d.kind === 'move') {
     setFaded(d.item.mesh, false);
+    const from = d.item.mesh.position.clone();
     if (d.moved && d.cell && canPlace(d.item.type, d.cell.x, d.cell.y, d.item.id)) {
       moveItem(d.item, d.cell.x, d.cell.y);
     } else {
       applyTransform(d.item);
     }
+    if (d.moved) settle(d.item, from);
     select(d.item);
   }
 }
@@ -384,10 +419,13 @@ canvas.addEventListener('pointerdown', (ev) => {
   if (ev.button === 2) return;
   if (mode === '3d') return; // orbit controls own the pointer in 3D
   const item = !playing && ev.button === 0 ? pickItem(ev) : null;
-  canvas.setPointerCapture(ev.pointerId);
+  try { canvas.setPointerCapture(ev.pointerId); } catch {}
   canvas.classList.add('dragging');
   if (item) {
-    drag = { kind: 'move', item, startX: ev.clientX, startY: ev.clientY, moved: false, cell: null };
+    const p = pointerToWorld(ev);
+    tweens.delete(item.mesh);
+    const grab = p ? { x: item.x - p.x, y: item.y - p.y } : null;
+    drag = { kind: 'move', item, grab, startX: ev.clientX, startY: ev.clientY, moved: false, cell: null };
   } else {
     select(null);
     drag = { kind: 'pan', startX: ev.clientX, startY: ev.clientY, cx0: view.cx, cy0: view.cy };
@@ -503,7 +541,7 @@ function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(clock.getDelta(), 0.05);
 
-  if (playing) stepPhysics(dt);
+  if (playing) stepPhysics(dt); else updateTweens(dt);
   if (mode === '2d') update2dCamera(); else orbit.update();
 
   // Keep the backdrop, floor and shadow light centered on the view.

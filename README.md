@@ -10,7 +10,7 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 
 | Action | How |
 |---|---|
-| Place a gizmo | Drag a card from the tray onto the board |
+| Place a gizmo | Drag a card from the tray onto the board. It floats freely while dragging and slides into a cell when you let go |
 | Move a gizmo | Drag it |
 | Delete | Right-click it, or select + `Delete` |
 | Flip a ramp | Select it and press `F` (or the Flip button). Works mid-drag too. |
