@@ -1,36 +1,40 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
     <title>Gadget Garage</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;700&display=fallback" />
     <link rel="stylesheet" href="src/style.css" />
   </head>
   <body>
     <div id="app">
       <header id="topbar">
-        <div class="brand">Gadget Garage</div>
+        <div class="brand title">Gadget Garage</div>
         <div class="examples">
-          <label for="examples">Examples</label>
+          <label for="examples" class="muted">Examples</label>
           <select id="examples"></select>
         </div>
         <div class="controls">
-          <button id="btn-undo" title="Undo (Cmd/Ctrl+Z)" disabled>↶ Undo</button>
-          <button id="btn-redo" title="Redo (Shift+Cmd/Ctrl+Z)" disabled>↷ Redo</button>
-          <button id="btn-play" class="big primary">▶ Play</button>
-          <button id="btn-reset" class="big" hidden>↺ Reset</button>
-          <button id="btn-clear" title="Remove everything">🗑 Clear</button>
-          <button id="btn-home" title="Recenter the view (H)">⌂ Home</button>
-          <button id="btn-view" title="Switch between flat and 3D views">3D view</button>
+          <button id="btn-undo" class="button" title="Undo (Cmd/Ctrl+Z)" disabled>↶ Undo</button>
+          <button id="btn-redo" class="button" title="Redo (Shift+Cmd/Ctrl+Z)" disabled>↷ Redo</button>
+          <button id="btn-play" class="button button-accent">▶ Play</button>
+          <button id="btn-reset" class="button button-accent" hidden>↺ Reset</button>
+          <button id="btn-clear" class="button" title="Remove everything">Clear</button>
+          <button id="btn-home" class="button" title="Recenter the view (H)">Home</button>
+          <button id="btn-view" class="button" title="Switch between flat and 3D views">3D view</button>
         </div>
       </header>
 
       <div id="stage">
         <canvas id="scene"></canvas>
         <div id="item-tools" hidden>
-          <button id="tool-rotate-ccw" title="Rotate counter-clockwise (R)">↺</button>
-          <button id="tool-rotate-cw" title="Rotate clockwise (Shift+R)">↻</button>
-          <button id="tool-delete" title="Delete">🗑</button>
+          <button id="tool-rotate-ccw" class="button-icon" title="Rotate counter-clockwise (R)">↺</button>
+          <button id="tool-rotate-cw" class="button-icon" title="Rotate clockwise (Shift+R)">↻</button>
+          <button id="tool-delete" class="button-icon" title="Delete">✕</button>
         </div>
         <div id="toast" hidden></div>
       </div>

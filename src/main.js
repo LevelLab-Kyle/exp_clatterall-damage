@@ -348,6 +348,7 @@ function startPlay() {
   }
 
   playing = true;
+  canvas.classList.remove('hover');
   document.body.classList.add('playing');
   updateHistoryButtons();
   btnPlay.hidden = true;
@@ -356,6 +357,7 @@ function startPlay() {
 
 function stopPlay() {
   playing = false;
+  canvas.classList.remove('hover');
   won = false;
   world = null;
   for (const item of items.values()) {
@@ -573,6 +575,13 @@ canvas.addEventListener('pointerdown', (ev) => {
 });
 
 window.addEventListener('pointermove', updateDrag);
+
+// Pointer cursor over anything selectable (only while editing and not dragging).
+canvas.addEventListener('pointermove', (ev) => {
+  const over = !drag && !playing && pickItem(ev) !== null;
+  canvas.classList.toggle('hover', over);
+});
+canvas.addEventListener('pointerleave', () => canvas.classList.remove('hover'));
 window.addEventListener('pointerup', endDrag);
 window.addEventListener('pointercancel', endDrag);
 

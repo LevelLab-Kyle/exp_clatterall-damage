@@ -205,7 +205,7 @@ const GADGETS = {
     w: 2, h: 2,
     dynamic: true,
     makeMesh() {
-      return shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.9, 40, 28), standard(0x3b3550, { roughness: 0.35 })));
+      return shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.9, 40, 28), standard(0x4a4668, { roughness: 0.35 })));
     },
     makeBody() {
       return lockToPlane(new CANNON.Body({ mass: 6, shape: new CANNON.Sphere(0.9), material: MATS.marble }));
@@ -346,7 +346,7 @@ const GADGETS = {
     makeMesh() {
       const g = new THREE.Group();
       g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.3, 0.6), standard(0x8a7f6a))).translateY(2.85));
-      const ball = named(shadowed(new THREE.Mesh(new THREE.SphereGeometry(this.ballRadius, 32, 24), standard(0x44444c, { roughness: 0.3, metalness: 0.3 }))), 'ball');
+      const ball = named(shadowed(new THREE.Mesh(new THREE.SphereGeometry(this.ballRadius, 32, 24), standard(0x5a5a68, { roughness: 0.3, metalness: 0.3 }))), 'ball');
       ball.position.copy(this.ballRest(0));
       g.add(ball);
       const rope = named(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1, 8), standard(0x333333)), 'rope');
