@@ -54,7 +54,9 @@ for (const name of Object.keys(EXAMPLES)) {
   for (let i = 0; i < 360; i++) { world.step(1/60); if (won && w === null) w = (i/60).toFixed(2); }
   stopPlay(); out.push(name + ' ' + (w ? 'ok (' + w + 's)' : 'FAIL'));
 }
-// drag from the tray, rotate, delete, undo, redo
+// Editing round-trip on Domino Run (its long ramp has room to turn):
+// place, rotate, delete, then undo all three and redo all three.
+loadExample('Domino Run'); homeView();
 const n0 = items.size; const card = document.querySelector('.gadget-card'); const rc = card.getBoundingClientRect();
 card.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: rc.left + 10, clientY: rc.top + 10, pointerId: 9, button: 0 }));
 window.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: 900, clientY: 300, pointerId: 9 }));
@@ -63,8 +65,9 @@ out.push('place ' + (items.size === n0 + 1 ? 'ok' : 'FAIL'));
 select([...items.values()].find(i => i.type === 'longramp')); rotateSelected(1);
 out.push('rotate ' + (selected.rot === 1 ? 'ok' : 'FAIL'));
 toolDelete.click(); out.push('delete ' + (items.size === n0 ? 'ok' : 'FAIL'));
-undo(); undo(); out.push('undo ' + (items.size === n0 + 1 ? 'ok' : 'FAIL'));
-redo(); redo(); out.push('redo ' + (items.size === n0 ? 'ok' : 'FAIL'));
+undo(); undo(); undo();
+out.push('undo ' + (items.size === n0 && [...items.values()].find(i => i.type === 'longramp').rot === 0 ? 'ok' : 'FAIL'));
+redo(); redo(); redo(); out.push('redo ' + (items.size === n0 ? 'ok' : 'FAIL'));
 loadExample('Domino Run');
 out.join(' | ');
 ```
