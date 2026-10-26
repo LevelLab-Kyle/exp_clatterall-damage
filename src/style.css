@@ -3,6 +3,7 @@
   --panel: #ffffff;
   --ink: #2b2a33;
   --accent: #ff7a59;
+  --color-accent: #0077ff; /* selection outline, same as the platform builder */
   --accent-ink: #fff;
   --line: #e4ddd1;
   --radius: 14px;
@@ -80,6 +81,35 @@ button[hidden] { display: none; }
   cursor: grab;
 }
 #scene.dragging { cursor: grabbing; }
+
+#item-tools {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: #fff;
+  border: 2px solid var(--color-accent);
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  transform: translate(-50%, -100%);
+  pointer-events: auto;
+  white-space: nowrap;
+}
+#item-tools[hidden] { display: none; }
+#item-tools button {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  font-size: 18px;
+  line-height: 1;
+  background: #f3f6fb;
+}
+#item-tools button:hover { background: #dbe8ff; }
+#item-tools button:disabled { opacity: 0.35; cursor: default; }
 
 #toast {
   position: absolute;

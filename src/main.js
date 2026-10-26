@@ -1,5 +1,3 @@
-const { OrbitControls } = THREE;
-
 // ---------------------------------------------------------------------------
 // Renderer, scene, cameras
 // ---------------------------------------------------------------------------
@@ -21,14 +19,47 @@ const camera2d = new THREE.OrthographicCamera(-1, 1, 1, -1, -100, 100);
 camera2d.position.set(8, 4, 20);
 const view = { cx: 8, cy: 4, zoom: 1 };
 
-// 3D view: perspective camera on orbit controls.
+// 3D view: a fixed tilted camera that follows the same pan/zoom as the flat view.
 const camera3d = new THREE.PerspectiveCamera(45, 1, 0.1, 500);
-const orbit = new OrbitControls(camera3d, canvas);
-orbit.enabled = false;
-orbit.enableDamping = true;
+const CAMERA_3D_OFFSET = new THREE.Vector3(5, 6, 13);
 
 let mode = '2d';
 const activeCamera = () => (mode === '2d' ? camera2d : camera3d);
+
+// Selection outline, matching the platform builder: three's outline pass
+// finds the selected object's silhouette (visible and hidden edges alike) and
+// adds it over the finished picture in the accent color.
+const OUTLINE = { edgeStrength: 3, edgeGlow: 0, edgeThickness: 1 };
+const accent = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim());
+const composer = new THREE.EffectComposer(renderer);
+const renderPass = new THREE.RenderPass(scene, camera2d);
+const outlinePass = new THREE.OutlinePass(new THREE.Vector2(1, 1), scene, camera2d);
+Object.assign(outlinePass, OUTLINE);
+outlinePass.pulsePeriod = 0;
+// Solid accent: the pass normally adds the edge color onto the picture, which
+// washes out on a light sky. Use white edges as a mask and paint the accent
+// over the frame with that mask as alpha instead.
+outlinePass.visibleEdgeColor.set(0xffffff);
+outlinePass.hiddenEdgeColor.set(0xffffff);
+outlinePass.overlayMaterial.blending = THREE.NormalBlending;
+outlinePass.overlayMaterial.uniforms.outlineColor = { value: accent };
+outlinePass.overlayMaterial.fragmentShader = `
+  uniform sampler2D maskTexture;
+  uniform sampler2D edgeTexture1;
+  uniform sampler2D edgeTexture2;
+  uniform float edgeStrength;
+  uniform float edgeGlow;
+  uniform vec3 outlineColor;
+  varying vec2 vUv;
+  void main() {
+    float mask = texture2D(maskTexture, vUv).r;
+    float edge = texture2D(edgeTexture1, vUv).r + texture2D(edgeTexture2, vUv).r * edgeGlow;
+    gl_FragColor = vec4(outlineColor, clamp(edgeStrength * mask * edge, 0.0, 1.0));
+  }`;
+outlinePass.overlayMaterial.needsUpdate = true;
+composer.addPass(renderPass);
+composer.addPass(outlinePass);
+composer.addPass(new THREE.OutputPass());
 
 // Lights
 scene.add(new THREE.HemisphereLight(0xffffff, 0xb8a98a, 0.9));
@@ -94,8 +125,8 @@ let playing = false;
 
 const key = (x, y) => `${x},${y}`;
 
-function canPlace(type, x, y, ignoreId = null) {
-  return footprintCells(type, x, y).every(([cx, cy]) => {
+function canPlace(type, x, y, rot = 0, ignoreId = null) {
+  return footprintCells(type, x, y, rot).every(([cx, cy]) => {
     if (cy < 0) return false;
     const id = occupied.get(key(cx, cy));
     return id == null || id === ignoreId;
@@ -134,10 +165,10 @@ function restoreRest(obj) {
   obj.traverse((o) => { if (o.userData.rest) { o.position.copy(o.userData.rest.p); o.quaternion.copy(o.userData.rest.q); } });
 }
 
-function addItem(type, x, y, flip = false) {
-  const item = { id: nextId++, type, x, y, flip, mesh: GIZMOS[type].makeMesh(), parts: null };
+function addItem(type, x, y, rot = 0) {
+  const item = { id: nextId++, type, x, y, rot, mesh: GIZMOS[type].makeMesh(), parts: null };
   items.set(item.id, item);
-  footprintCells(type, x, y).forEach(([cx, cy]) => occupied.set(key(cx, cy), item.id));
+  footprintCells(type, x, y, rot).forEach(([cx, cy]) => occupied.set(key(cx, cy), item.id));
   storeRest(item.mesh);
   setHighlight(item, false); // records each mesh's base glow
   applyTransform(item);
@@ -146,16 +177,17 @@ function addItem(type, x, y, flip = false) {
   return item;
 }
 
-function moveItem(item, x, y) {
-  footprintCells(item.type, item.x, item.y).forEach(([cx, cy]) => occupied.delete(key(cx, cy)));
+function moveItem(item, x, y, rot = item.rot) {
+  footprintCells(item.type, item.x, item.y, item.rot).forEach(([cx, cy]) => occupied.delete(key(cx, cy)));
   item.x = x;
   item.y = y;
-  footprintCells(item.type, x, y).forEach(([cx, cy]) => occupied.set(key(cx, cy), item.id));
+  item.rot = rot;
+  footprintCells(item.type, x, y, rot).forEach(([cx, cy]) => occupied.set(key(cx, cy), item.id));
   applyTransform(item);
 }
 
 function removeItem(item) {
-  footprintCells(item.type, item.x, item.y).forEach(([cx, cy]) => occupied.delete(key(cx, cy)));
+  footprintCells(item.type, item.x, item.y, item.rot).forEach(([cx, cy]) => occupied.delete(key(cx, cy)));
   items.delete(item.id);
   tweens.delete(item.mesh);
   scene.remove(item.mesh);
@@ -163,9 +195,8 @@ function removeItem(item) {
 }
 
 function select(item) {
-  if (selected) setHighlight(selected, false);
   selected = item;
-  if (selected) setHighlight(selected, true);
+  outlinePass.selectedObjects = selected ? [selected.mesh] : [];
 }
 
 function clearBoard() {
@@ -302,35 +333,44 @@ function pointerToWorld(ev) {
 
 // Where the dragged gizmo floats (un-snapped) and the cell it would land in.
 // `grab` is the pointer-to-anchor offset so a picked-up item doesn't jump.
-function dragTarget(ev, def, grab) {
+function dragTarget(ev, size, grab) {
   const p = pointerToWorld(ev);
   if (!p) return null;
-  const ax = grab ? p.x + grab.x : p.x - def.w / 2;
-  const ay = grab ? p.y + grab.y : p.y - def.h / 2;
+  const ax = grab ? p.x + grab.x : p.x - size.w / 2;
+  const ay = grab ? p.y + grab.y : p.y - size.h / 2;
   return { ax, ay, x: Math.round(ax), y: Math.round(ay) };
 }
 
-// Short ease-out slide from wherever a gizmo was dropped into its cell.
-const tweens = new Map(); // mesh -> { from, to, t }
-const SNAP_SECONDS = 0.18;
+// Short ease-out animation into place: slide (and turn, if the rotation
+// changed) from wherever the gizmo was into its cell, both at once.
+const tweens = new Map(); // mesh -> { from, to, fromQ, toQ, t }
+const SNAP_SECONDS = 0.2;
+const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 
-function settle(item, fromPosition) {
+function settle(item, fromPosition, fromQuaternion = null) {
   const to = item.mesh.position.clone();
+  const toQ = item.mesh.quaternion.clone();
   item.mesh.position.copy(fromPosition);
-  tweens.set(item.mesh, { from: fromPosition.clone(), to, t: 0 });
+  const tw = { from: fromPosition.clone(), to, t: 0, fromQ: null, toQ };
+  if (fromQuaternion && !fromQuaternion.equals(toQ)) {
+    tw.fromQ = fromQuaternion.clone();
+    item.mesh.quaternion.copy(fromQuaternion);
+  }
+  tweens.set(item.mesh, tw);
 }
 
 function updateTweens(dt) {
   for (const [mesh, tw] of tweens) {
     tw.t = Math.min(1, tw.t + dt / SNAP_SECONDS);
-    const k = 1 - Math.pow(1 - tw.t, 3);
+    const k = easeOut(tw.t);
     mesh.position.lerpVectors(tw.from, tw.to, k);
+    if (tw.fromQ) mesh.quaternion.slerpQuaternions(tw.fromQ, tw.toQ, k);
     if (tw.t >= 1) tweens.delete(mesh);
   }
 }
 
 function finishTweens() {
-  for (const [mesh, tw] of tweens) mesh.position.copy(tw.to);
+  for (const [mesh, tw] of tweens) { mesh.position.copy(tw.to); mesh.quaternion.copy(tw.toQ); }
   tweens.clear();
 }
 
@@ -353,7 +393,7 @@ function beginNewDrag(type, ev) {
   eachMesh(ghost, (m) => { m.material = ghostMat; m.castShadow = false; });
   ghost.visible = false;
   scene.add(ghost);
-  drag = { kind: 'new', type, ghost, flip: false, cell: null };
+  drag = { kind: 'new', type, ghost, rot: 0, cell: null };
   try { ev.target.setPointerCapture(ev.pointerId); } catch {}
   updateDrag(ev);
 }
@@ -367,22 +407,23 @@ function updateDrag(ev) {
     view.cy = drag.cy0 + dy;
     return;
   }
-  const def = GIZMOS[drag.kind === 'new' ? drag.type : drag.item.type];
-  const cell = dragTarget(ev, def, drag.grab);
+  const type = drag.kind === 'new' ? drag.type : drag.item.type;
+  const rot = drag.kind === 'new' ? drag.rot : drag.item.rot;
+  const cell = dragTarget(ev, footprintSize(type, rot), drag.grab);
   drag.cell = cell;
   if (drag.kind === 'new') {
     drag.ghost.visible = !!cell;
     if (cell) {
-      const ok = canPlace(drag.type, cell.x, cell.y);
+      const ok = canPlace(drag.type, cell.x, cell.y, rot);
       eachMesh(drag.ghost, (m) => { m.material = ok ? ghostMat : ghostBadMat; });
-      const { position, quaternion } = itemTransform({ type: drag.type, x: cell.ax, y: cell.ay, flip: drag.flip });
+      const { position, quaternion } = itemTransform({ type: drag.type, x: cell.ax, y: cell.ay, rot });
       drag.ghost.position.copy(position);
       drag.ghost.quaternion.copy(quaternion);
     }
   } else if (drag.kind === 'move') {
     if (Math.hypot(ev.clientX - drag.startX, ev.clientY - drag.startY) > 4) drag.moved = true;
     if (drag.moved && cell) {
-      const ok = canPlace(drag.item.type, cell.x, cell.y, drag.item.id);
+      const ok = canPlace(drag.item.type, cell.x, cell.y, rot, drag.item.id);
       const { position } = itemTransform({ ...drag.item, x: cell.ax, y: cell.ay });
       drag.item.mesh.position.copy(position);
       setFaded(drag.item.mesh, !ok);
@@ -397,15 +438,15 @@ function endDrag(ev) {
   canvas.classList.remove('dragging');
   if (d.kind === 'new') {
     scene.remove(d.ghost);
-    if (d.cell && canPlace(d.type, d.cell.x, d.cell.y)) {
-      const item = addItem(d.type, d.cell.x, d.cell.y, d.flip);
+    if (d.cell && canPlace(d.type, d.cell.x, d.cell.y, d.rot)) {
+      const item = addItem(d.type, d.cell.x, d.cell.y, d.rot);
       settle(item, d.ghost.position);
       select(item);
     }
   } else if (d.kind === 'move') {
     setFaded(d.item.mesh, false);
     const from = d.item.mesh.position.clone();
-    if (d.moved && d.cell && canPlace(d.item.type, d.cell.x, d.cell.y, d.item.id)) {
+    if (d.moved && d.cell && canPlace(d.item.type, d.cell.x, d.cell.y, d.item.rot, d.item.id)) {
       moveItem(d.item, d.cell.x, d.cell.y);
     } else {
       applyTransform(d.item);
@@ -417,7 +458,6 @@ function endDrag(ev) {
 
 canvas.addEventListener('pointerdown', (ev) => {
   if (ev.button === 2) return;
-  if (mode === '3d') return; // orbit controls own the pointer in 3D
   const item = !playing && ev.button === 0 ? pickItem(ev) : null;
   try { canvas.setPointerCapture(ev.pointerId); } catch {}
   canvas.classList.add('dragging');
@@ -438,13 +478,12 @@ window.addEventListener('pointercancel', endDrag);
 
 canvas.addEventListener('contextmenu', (ev) => {
   ev.preventDefault();
-  if (playing || mode === '3d') return;
+  if (playing) return;
   const item = pickItem(ev);
   if (item) removeItem(item);
 });
 
 canvas.addEventListener('wheel', (ev) => {
-  if (mode === '3d') return;
   ev.preventDefault();
   if (ev.ctrlKey || ev.metaKey) {
     view.zoom = THREE.MathUtils.clamp(view.zoom * Math.exp(-ev.deltaY * 0.01), 0.25, 3);
@@ -455,20 +494,27 @@ canvas.addEventListener('wheel', (ev) => {
 }, { passive: false });
 
 window.addEventListener('keydown', (ev) => {
-  if (ev.key === 'f' || ev.key === 'F') flipSelected();
+  if (ev.key === 'f' || ev.key === 'F' || ev.key === 'r' || ev.key === 'R') rotateSelected(ev.shiftKey ? -1 : 1);
   if ((ev.key === 'Delete' || ev.key === 'Backspace') && selected && !playing) removeItem(selected);
   if (ev.key === 'Escape') select(null);
   if (ev.key === ' ') { ev.preventDefault(); playing ? stopPlay() : startPlay(); }
 });
 
-function flipSelected() {
-  if (drag?.kind === 'new' && GIZMOS[drag.type].flippable) {
-    drag.flip = !drag.flip;
+// Turn the selected (or being-dragged) gizmo a quarter turn.
+// dir = +1 counter-clockwise, -1 clockwise.
+function rotateSelected(dir = 1) {
+  if (drag?.kind === 'new' && GIZMOS[drag.type].rotatable) {
+    drag.rot = (drag.rot + dir + 4) % 4;
     return;
   }
-  if (!selected || playing || !GIZMOS[selected.type].flippable) return;
-  selected.flip = !selected.flip;
-  applyTransform(selected);
+  if (!selected || playing || !GIZMOS[selected.type].rotatable) return;
+  const rot = (selected.rot + dir + 4) % 4;
+  // The turned footprint has to fit where it stands.
+  if (!canPlace(selected.type, selected.x, selected.y, rot, selected.id)) return;
+  const from = selected.mesh.position.clone();
+  const fromQ = selected.mesh.quaternion.clone();
+  moveItem(selected, selected.x, selected.y, rot);
+  settle(selected, from, fromQ); // turns and slides into the cell together
 }
 
 // ---------------------------------------------------------------------------
@@ -477,16 +523,51 @@ function flipSelected() {
 
 const btnPlay = document.getElementById('btn-play');
 const btnReset = document.getElementById('btn-reset');
-const btnFlip = document.getElementById('btn-flip');
+const btnRotateCcw = document.getElementById('btn-rotate-ccw');
+const btnRotateCw = document.getElementById('btn-rotate-cw');
 const btnClear = document.getElementById('btn-clear');
 const btnView = document.getElementById('btn-view');
 const toast = document.getElementById('toast');
+const itemTools = document.getElementById('item-tools');
+const toolRotateCcw = document.getElementById('tool-rotate-ccw');
+const toolRotateCw = document.getElementById('tool-rotate-cw');
+const toolDelete = document.getElementById('tool-delete');
 const trayList = document.getElementById('gizmo-list');
 
 btnPlay.onclick = startPlay;
 btnReset.onclick = stopPlay;
-btnFlip.onclick = flipSelected;
+btnRotateCcw.onclick = () => rotateSelected(1);
+btnRotateCw.onclick = () => rotateSelected(-1);
 btnClear.onclick = () => { if (!playing) clearBoard(); };
+toolRotateCcw.onclick = () => rotateSelected(1);
+toolRotateCw.onclick = () => rotateSelected(-1);
+toolDelete.onclick = () => { if (selected && !playing) removeItem(selected); };
+// Clicks on the floating tools must not reach the board underneath.
+itemTools.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+
+// Float the rotate/delete buttons just above the selected gizmo.
+const _corner = new THREE.Vector3();
+const _bbox = new THREE.Box3();
+function updateItemTools() {
+  const show = selected && !playing && !drag;
+  itemTools.hidden = !show;
+  if (!show) return;
+  _bbox.setFromObject(selected.mesh);
+  const cam = activeCamera();
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  let minY = Infinity, sumX = 0;
+  for (let i = 0; i < 8; i++) {
+    _corner.set(i & 1 ? _bbox.max.x : _bbox.min.x, i & 2 ? _bbox.max.y : _bbox.min.y, i & 4 ? _bbox.max.z : _bbox.min.z);
+    _corner.project(cam);
+    const sx = (_corner.x + 1) / 2 * w, sy = (1 - _corner.y) / 2 * h;
+    minY = Math.min(minY, sy);
+    sumX += sx;
+  }
+  const x = THREE.MathUtils.clamp(sumX / 8, 50, w - 50);
+  const y = THREE.MathUtils.clamp(minY - 10, 56, h);
+  itemTools.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+  toolRotateCcw.disabled = toolRotateCw.disabled = !GIZMOS[selected.type].rotatable;
+}
 btnView.onclick = () => setMode(mode === '2d' ? '3d' : '2d');
 
 for (const type of GIZMO_ORDER) {
@@ -502,13 +583,14 @@ function setMode(next) {
   mode = next;
   btnView.textContent = next === '2d' ? '3D view' : 'Flat view';
   backdrop.visible = next === '2d';
-  orbit.enabled = next === '3d';
-  if (next === '3d') {
-    const target = new THREE.Vector3(view.cx, Math.max(view.cy, 2), 0);
-    camera3d.position.copy(target).add(new THREE.Vector3(6, 7, 14));
-    orbit.target.copy(target);
-    orbit.update();
-  }
+  renderPass.camera = activeCamera();
+  outlinePass.renderCamera = activeCamera();
+}
+
+function update3dCamera() {
+  const target = new THREE.Vector3(view.cx, view.cy, 0);
+  camera3d.position.copy(target).addScaledVector(CAMERA_3D_OFFSET, 1 / view.zoom);
+  camera3d.lookAt(target);
 }
 
 // ---------------------------------------------------------------------------
@@ -518,6 +600,8 @@ function setMode(next) {
 function resize() {
   const w = stage.clientWidth, h = stage.clientHeight;
   renderer.setSize(w, h, false);
+  composer.setSize(w, h);
+  outlinePass.setSize(w, h);
   camera3d.aspect = w / h;
   camera3d.updateProjectionMatrix();
 }
@@ -542,10 +626,11 @@ function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
 
   if (playing) stepPhysics(dt); else updateTweens(dt);
-  if (mode === '2d') update2dCamera(); else orbit.update();
+  update2dCamera(); // also clamps the view above the ground
+  if (mode === '3d') update3dCamera();
 
   // Keep the backdrop, floor and shadow light centered on the view.
-  const focus = mode === '2d' ? new THREE.Vector3(view.cx, view.cy, 0) : orbit.target;
+  const focus = new THREE.Vector3(view.cx, view.cy, 0);
   backdrop.position.x = focus.x;
   backdrop.position.y = focus.y;
   floor.position.x = focus.x;
@@ -558,8 +643,9 @@ function frame() {
   if (won) {
     for (const item of items.values()) if (item.type === 'star') item.mesh.rotation.y += dt * 4;
   }
+  updateItemTools();
 
-  renderer.render(scene, activeCamera());
+  composer.render();
 }
 
 // ---------------------------------------------------------------------------

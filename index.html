@@ -13,7 +13,8 @@
         <div class="controls">
           <button id="btn-play" class="big primary">▶ Play</button>
           <button id="btn-reset" class="big" hidden>↺ Reset</button>
-          <button id="btn-flip" title="Flip the selected ramp (F)">⇄ Flip</button>
+          <button id="btn-rotate-ccw" title="Rotate counter-clockwise (R)">↺ Rotate</button>
+          <button id="btn-rotate-cw" title="Rotate clockwise (Shift+R)">↻ Rotate</button>
           <button id="btn-clear" title="Remove everything">🗑 Clear</button>
           <button id="btn-view" title="Switch between flat and 3D views">3D view</button>
         </div>
@@ -21,6 +22,11 @@
 
       <div id="stage">
         <canvas id="scene"></canvas>
+        <div id="item-tools" hidden>
+          <button id="tool-rotate-ccw" title="Rotate counter-clockwise (R)">↺</button>
+          <button id="tool-rotate-cw" title="Rotate clockwise (Shift+R)">↻</button>
+          <button id="tool-delete" title="Delete">🗑</button>
+        </div>
         <div id="toast" hidden></div>
       </div>
 

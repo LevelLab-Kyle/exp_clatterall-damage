@@ -9,7 +9,7 @@
 // (the cell spans x..x+1, y..y+1, z -0.5..0.5).
 
 
-const Y_AXIS = new THREE.Vector3(0, 1, 0);
+const Z_AXIS_THREE = new THREE.Vector3(0, 0, 1);
 const COLORS = {
   marble: 0x4f8cff,
   domino: 0xff6b6b,
@@ -110,6 +110,7 @@ const GIZMOS = {
     icon: '🀫',
     hint: 'tips over',
     w: 1, h: 2,
+    rotatable: true,
     dynamic: true,
     makeMesh() {
       return shadowed(new THREE.Mesh(new THREE.BoxGeometry(DOMINO.w, DOMINO.h, DOMINO.d), standard(COLORS.domino)));
@@ -124,9 +125,9 @@ const GIZMOS = {
   ramp: {
     name: 'Ramp',
     icon: '◢',
-    hint: 'F to flip',
+    hint: 'F rotates',
     w: 1, h: 1,
-    flippable: true,
+    rotatable: true,
     makeMesh() {
       return shadowed(new THREE.Mesh(wedgeGeometry(1, 1, 1), standard(COLORS.ramp)));
     },
@@ -139,9 +140,9 @@ const GIZMOS = {
   longramp: {
     name: 'Long ramp',
     icon: '◢◢',
-    hint: 'F to flip',
+    hint: 'F rotates',
     w: 2, h: 1,
-    flippable: true,
+    rotatable: true,
     makeMesh() {
       return shadowed(new THREE.Mesh(wedgeGeometry(2, 1, 1), standard(COLORS.ramp)));
     },
@@ -211,6 +212,7 @@ const GIZMOS = {
     icon: '🛏',
     hint: 'boing!',
     w: 1, h: 1,
+    rotatable: true,
     makeMesh() {
       const g = new THREE.Group();
       g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.3, 1), standard(0x6b5b95))).translateY(0.15));
@@ -255,9 +257,9 @@ const GIZMOS = {
   fan: {
     name: 'Fan',
     icon: '🌀',
-    hint: 'F to flip',
+    hint: 'F rotates',
     w: 1, h: 1,
-    flippable: true,
+    rotatable: true,
     push: 3.5, // reach in cells
     makeMesh() {
       const g = new THREE.Group();
@@ -280,14 +282,20 @@ const GIZMOS = {
       return { parts: [{ body: post, mesh: null }], constraints: [] };
     },
     onStep(item, world) {
-      const dir = item.flip ? -1 : 1;
+      // Blows along the fan's local +x, turned by the item's rotation.
+      const a = (item.rot || 0) * Math.PI / 2;
+      const dx = Math.cos(a), dy = Math.sin(a);
       const fx = item.x + 0.5, fy = item.y + 0.5;
       for (const b of world.bodies) {
         if (b.mass === 0) continue;
-        const ahead = (b.position.x - fx) * dir;
-        if (ahead < 0.4 || ahead > this.push || Math.abs(b.position.y - fy) > 0.8) continue;
-        const strength = 45 * (1 - ahead / this.push);
-        b.applyForce(new CANNON.Vec3(dir * strength * b.mass, 0, 0), b.position);
+        const rx = b.position.x - fx, ry = b.position.y - fy;
+        const ahead = rx * dx + ry * dy;
+        const side = Math.abs(-rx * dy + ry * dx);
+        if (ahead < 0.4 || ahead > this.push || side > 0.8) continue;
+        // Strong enough to lift a marble against gravity (30) at full reach.
+        const strength = 75 * (1 - 0.5 * ahead / this.push);
+        // Force through the center of mass: no lever arm, so no spin.
+        b.applyForce(new CANNON.Vec3(dx * strength * b.mass, dy * strength * b.mass, 0));
       }
     },
     onFrame(item, dt) {
@@ -345,20 +353,32 @@ GIZMOS.pendulum.makeMesh = function () {
 
 const GIZMO_ORDER = ['marble', 'bowling', 'domino', 'ramp', 'longramp', 'block', 'seesaw', 'bouncer', 'fan', 'pendulum', 'star'];
 
-// World-space transform for an item placed at cell (x, y).
+// Footprint size after `rot` quarter turns (odd turns swap width and height).
+function footprintSize(type, rot = 0) {
+  const def = GIZMOS[type];
+  return rot % 2 ? { w: def.h, h: def.w } : { w: def.w, h: def.h };
+}
+
+// World-space transform for an item at cell (x, y), turned `rot` quarter
+// turns counter-clockwise about the center of its footprint.
 function itemTransform(item) {
   const def = GIZMOS[item.type];
-  const position = def.offset().add(new THREE.Vector3(item.x, item.y, 0));
-  const quaternion = new THREE.Quaternion();
-  if (item.flip) quaternion.setFromAxisAngle(Y_AXIS, Math.PI);
+  const rot = item.rot || 0;
+  const angle = rot * Math.PI / 2;
+  const quaternion = new THREE.Quaternion().setFromAxisAngle(Z_AXIS_THREE, angle);
+  const turned = footprintSize(item.type, rot);
+  // The mesh origin sits at `offset` inside the unturned footprint; spin that
+  // about the footprint center, then drop it into the turned footprint.
+  const local = def.offset().sub(new THREE.Vector3(def.w / 2, def.h / 2, 0)).applyQuaternion(quaternion);
+  const position = local.add(new THREE.Vector3(item.x + turned.w / 2, item.y + turned.h / 2, 0));
   return { position, quaternion };
 }
 
-function footprintCells(type, x, y) {
-  const def = GIZMOS[type];
+function footprintCells(type, x, y, rot = 0) {
+  const { w, h } = footprintSize(type, rot);
   const cells = [];
-  for (let i = 0; i < def.w; i++) {
-    for (let j = 0; j < def.h; j++) cells.push([x + i, y + j]);
+  for (let i = 0; i < w; i++) {
+    for (let j = 0; j < h; j++) cells.push([x + i, y + j]);
   }
   return cells;
 }

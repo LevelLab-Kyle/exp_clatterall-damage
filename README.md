@@ -11,13 +11,13 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 | Action | How |
 |---|---|
 | Place a gizmo | Drag a card from the tray onto the board. It floats freely while dragging and slides into a cell when you let go |
-| Move a gizmo | Drag it |
+| Move a gizmo | Drag it. The selected gizmo gets a blue outline, same as the platform builder |
 | Delete | Right-click it, or select + `Delete` |
-| Flip a ramp | Select it and press `F` (or the Flip button). Works mid-drag too. |
+| Rotate | Select a gizmo and use the ↺ / ↻ buttons next to it, or `R` (counter-clockwise) / `Shift+R` (clockwise). Turns 90° at a time; works mid-drag too. Ramps get all four orientations; the fan blows in the direction it faces. |
 | Pan | Drag empty space, or scroll. You can't scroll below the ground |
 | Zoom | `Ctrl`/`Cmd` + scroll (pinch on a trackpad) |
 | Play / Reset | Buttons, or `Space` |
-| 3D view | "3D view" button. Orbit with the mouse. Editing is 2D-only for now. |
+| 3D view | "3D view" button. Fixed tilted camera; pan, zoom and editing work the same as the flat view |
 
 Hit the ⭐ Star with anything to win.
 
@@ -28,11 +28,11 @@ Hit the ⭐ Star with anything to win.
 | Marble | 1×1 | Rolls and falls |
 | Bowling ball | 2×2 | Heavy. Knocks big things over |
 | Domino | 1×2 | Tips over and takes the next one with it |
-| Ramp / Long ramp | 1×1 / 2×1 | Static slope. `F` flips it |
+| Ramp / Long ramp | 1×1 / 2×1 | Static slope. Rotate for all four orientations |
 | Block | 1×1 | Solid cube to build on |
 | Seesaw | 3×1 | Plank on a hinge. Drop something on one end to fling the other |
 | Bouncer | 1×1 | Springy pad; marbles bounce off it |
-| Fan | 1×1 | Pushes anything up to 3 cells in front of it. `F` flips the direction |
+| Fan | 1×1 | Pushes anything up to 3 cells in the direction it faces. Rotate to aim it |
 | Pendulum | 1×3 | Heavy ball on a rope. Swings when hit |
 | Star | 1×1 | The goal |
 
