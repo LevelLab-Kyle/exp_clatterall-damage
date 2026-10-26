@@ -137,6 +137,7 @@ function applyTransform(item) {
   const { position, quaternion } = itemTransform(item);
   item.mesh.position.copy(position);
   item.mesh.quaternion.copy(quaternion);
+  GIZMOS[item.type].applyRot?.(item);
 }
 
 // Gizmo visuals may be a single mesh or a group; these apply to every mesh inside.
@@ -169,9 +170,9 @@ function addItem(type, x, y, rot = 0) {
   const item = { id: nextId++, type, x, y, rot, mesh: GIZMOS[type].makeMesh(), parts: null };
   items.set(item.id, item);
   footprintCells(type, x, y, rot).forEach(([cx, cy]) => occupied.set(key(cx, cy), item.id));
+  applyTransform(item);
   storeRest(item.mesh);
   setHighlight(item, false); // records each mesh's base glow
-  applyTransform(item);
   item.mesh.userData.itemId = item.id;
   scene.add(item.mesh);
   return item;
@@ -563,10 +564,30 @@ window.addEventListener('keydown', (ev) => {
 // dir = +1 counter-clockwise, -1 clockwise.
 function rotateSelected(dir = 1) {
   if (drag?.kind === 'new' && GIZMOS[drag.type].rotatable) {
-    drag.rot = (drag.rot + dir + 4) % 4;
+    const def = GIZMOS[drag.type];
+    if (def.swing) {
+      drag.rot = THREE.MathUtils.clamp(drag.rot + dir, def.swing.min, def.swing.max);
+      def.applyRot({ mesh: drag.ghost, rot: drag.rot });
+    } else {
+      drag.rot = (drag.rot + dir + 4) % 4;
+    }
     return;
   }
   if (!selected || playing || !GIZMOS[selected.type].rotatable) return;
+  const def = GIZMOS[selected.type];
+  if (def.swing) {
+    const rot = THREE.MathUtils.clamp((selected.rot || 0) + dir, def.swing.min, def.swing.max);
+    if (rot === selected.rot) return;
+    recordEdit();
+    selected.rot = rot;
+    const ball = selected.mesh.getObjectByName('ball');
+    const from = ball.position.clone();
+    def.applyRot(selected);
+    const to = ball.position.clone();
+    ball.position.copy(from);
+    tweens.set(ball, { from, to, t: 0, fromQ: null, toQ: ball.quaternion.clone() });
+    return;
+  }
   const rot = (selected.rot + dir + 4) % 4;
   // The turned footprint has to fit where it stands.
   if (!canPlace(selected.type, selected.x, selected.y, rot, selected.id)) return;
@@ -702,6 +723,9 @@ function frame() {
 
   if (won) {
     for (const item of items.values()) if (item.type === 'star') item.mesh.rotation.y += dt * 4;
+  }
+  if (!playing) {
+    for (const item of items.values()) if (GIZMOS[item.type].idleFrame) GIZMOS[item.type].onFrame(item, dt);
   }
   updateItemTools();
 

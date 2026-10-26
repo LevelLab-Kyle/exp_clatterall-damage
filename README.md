@@ -36,7 +36,7 @@ The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, 
 | Seesaw | 3×1 | Plank on a hinge. Drop something on one end to fling the other |
 | Bouncer | 1×1 | Springy pad; marbles bounce off it |
 | Fan | 1×1 | Pushes anything up to 3 cells in the direction it faces. Rotate to aim it |
-| Pendulum | 1×3 | Heavy ball on a rope. Swings when hit |
+| Pendulum | 1×3 | Heavy ball on a rope. Swings when hit. Rotate swings the ball out one column at a time (up to two) left or right to start it off |
 | Star | 1×1 | The goal |
 
 ## How it's built

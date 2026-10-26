@@ -323,11 +323,34 @@ const GIZMOS = {
     icon: '🪀',
     hint: 'swings',
     w: 1, h: 3,
+    // Rotate doesn't turn the pendulum; it swings the ball out one column at
+    // a time, up to two either side (rot is -2..2). At each level the ball's
+    // outer edge sits on that column's far grid line (about 27° and 62°).
+    rotatable: true,
+    rope: 2.35,
+    ballRadius: 0.42,
+    swing: { min: -2, max: 2 },
+    idleFrame: true, // keep the rope drawn while editing
+    swingAngle(rot) {
+      // ↺ (positive rot) swings the ball to the left, ↻ to the right.
+      const reach = 0.5 + Math.abs(rot) - this.ballRadius;
+      return -Math.sign(rot) * Math.asin(Math.min(1, reach / this.rope));
+    },
+    ballRest(rot = 0) {
+      const a = rot ? this.swingAngle(rot) : 0;
+      return new THREE.Vector3(Math.sin(a) * this.rope, 2.85 - Math.cos(a) * this.rope, 0);
+    },
+    applyRot(item) {
+      const ball = item.mesh.getObjectByName('ball');
+      ball.position.copy(this.ballRest(item.rot || 0));
+      if (ball.userData.rest) ball.userData.rest.p.copy(ball.position);
+      this.onFrame(item);
+    },
     makeMesh() {
       const g = new THREE.Group();
       g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.3, 0.6), standard(0x8a7f6a))).translateY(2.85));
-      const ball = named(shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.42, 32, 24), standard(0x44444c, { roughness: 0.3, metalness: 0.3 }))), 'ball');
-      ball.position.y = 0.5;
+      const ball = named(shadowed(new THREE.Mesh(new THREE.SphereGeometry(this.ballRadius, 32, 24), standard(0x44444c, { roughness: 0.3, metalness: 0.3 }))), 'ball');
+      ball.position.copy(this.ballRest(0));
       g.add(ball);
       const rope = named(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1, 8), standard(0x333333)), 'rope');
       g.add(rope);
@@ -335,10 +358,11 @@ const GIZMOS = {
     },
     makeBodies(g) {
       const anchor = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(0.5, 0.15, 0.3)), material: MATS.surface });
-      const ball = lockToPlane(new CANNON.Body({ mass: 3, shape: new CANNON.Sphere(0.42), material: MATS.marble }));
+      const ball = lockToPlane(new CANNON.Body({ mass: 3, shape: new CANNON.Sphere(this.ballRadius), material: MATS.marble }));
       ball.linearDamping = 0.02;
-      // Rope length: anchor sits 2.35 above the ball at rest.
-      const rope = new CANNON.PointToPointConstraint(anchor, new CANNON.Vec3(0, 0, 0), ball, new CANNON.Vec3(0, 2.35, 0));
+      // Rope: pin the ball to the anchor at whatever angle it starts from.
+      const toAnchor = g.children[0].position.clone().sub(g.getObjectByName('ball').position);
+      const rope = new CANNON.PointToPointConstraint(anchor, new CANNON.Vec3(0, 0, 0), ball, new CANNON.Vec3(toAnchor.x, toAnchor.y, toAnchor.z));
       return {
         parts: [{ body: anchor, mesh: g.children[0] }, { body: ball, mesh: g.getObjectByName('ball') }],
         constraints: [rope],
@@ -370,6 +394,7 @@ const GIZMO_ORDER = ['marble', 'bowling', 'domino', 'ramp', 'longramp', 'block',
 // Footprint size after `rot` quarter turns (odd turns swap width and height).
 function footprintSize(type, rot = 0) {
   const def = GIZMOS[type];
+  if (def.swing) return { w: def.w, h: def.h }; // swinging gizmos never turn
   return rot % 2 ? { w: def.h, h: def.w } : { w: def.w, h: def.h };
 }
 
@@ -377,7 +402,7 @@ function footprintSize(type, rot = 0) {
 // turns counter-clockwise about the center of its footprint.
 function itemTransform(item) {
   const def = GIZMOS[item.type];
-  const rot = item.rot || 0;
+  const rot = def.swing ? 0 : (item.rot || 0);
   const angle = rot * Math.PI / 2;
   const quaternion = new THREE.Quaternion().setFromAxisAngle(Z_AXIS_THREE, angle);
   const turned = footprintSize(item.type, rot);
