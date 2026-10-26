@@ -160,13 +160,13 @@ button[hidden] { display: none; }
   margin-bottom: 6px;
 }
 
-#gizmo-list {
+#gadget-list {
   display: flex;
   gap: 10px;
   overflow-x: auto;
 }
 
-.gizmo-card {
+.gadget-card {
   flex: 0 0 auto;
   width: 92px;
   padding: 8px 6px;
@@ -177,10 +177,10 @@ button[hidden] { display: none; }
   cursor: grab;
   transition: transform 0.08s ease, border-color 0.15s ease;
 }
-.gizmo-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-.gizmo-card:active { cursor: grabbing; transform: scale(0.96); }
-.gizmo-card .icon { font-size: 30px; line-height: 1.1; }
-.gizmo-card .name { font-size: 13px; font-weight: 800; margin-top: 2px; }
-.gizmo-card .hint { font-size: 11px; opacity: 0.55; }
+.gadget-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.gadget-card:active { cursor: grabbing; transform: scale(0.96); }
+.gadget-card .icon { font-size: 30px; line-height: 1.1; }
+.gadget-card .name { font-size: 13px; font-weight: 800; margin-top: 2px; }
+.gadget-card .hint { font-size: 11px; opacity: 0.55; }
 
 body.playing #tray { opacity: 0.45; pointer-events: none; }

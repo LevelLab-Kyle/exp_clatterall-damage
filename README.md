@@ -1,6 +1,6 @@
-# Gizmo Garage
+# Gadget Garage
 
-Prototype of a kids' Rube Goldberg builder. Drag gizmos onto a voxel board, press Play, watch it go.
+Prototype of a kids' Rube Goldberg builder. Drag gadgets onto a voxel board, press Play, watch it go.
 
 ## Run
 
@@ -10,10 +10,10 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 
 | Action | How |
 |---|---|
-| Place a gizmo | Drag a card from the tray onto the board. It floats freely while dragging and slides into a cell when you let go |
-| Move a gizmo | Drag it. The selected gizmo gets a blue outline, same as the platform builder |
+| Place a gadget | Drag a card from the tray onto the board. It floats freely while dragging and slides into a cell when you let go |
+| Move a gadget | Drag it. The selected gadget gets a blue outline, same as the platform builder |
 | Delete | Right-click it, or select + `Delete` |
-| Rotate | Select a gizmo and use the ↺ / ↻ buttons next to it, or `R` (counter-clockwise) / `Shift+R` (clockwise). Turns 90° at a time; works mid-drag too. Ramps get all four orientations; the fan blows in the direction it faces. |
+| Rotate | Select a gadget and use the ↺ / ↻ buttons next to it, or `R` (counter-clockwise) / `Shift+R` (clockwise). Turns 90° at a time; works mid-drag too. Ramps get all four orientations; the fan blows in the direction it faces. |
 | Pan | Drag empty space, or scroll. The view settles onto whole cells and never goes below the ground |
 | Zoom | `Ctrl`/`Cmd` + scroll (pinch on a trackpad) |
 | Home | ⌂ button or `H`: recenter on the whole contraption at normal zoom |
@@ -27,9 +27,9 @@ Your board, view and chosen example are saved in the browser (localStorage) as y
 
 The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, Seesaw Launch, Fan Elevator, Wrecking Ball, Bounce Alley). They live in `src/examples.js` as plain lists of `[type, x, y, rot]`.
 
-## Gizmos
+## Gadgets
 
-| Gizmo | Size | What it does |
+| Gadget | Size | What it does |
 |---|---|---|
 | Marble | 1×1 | Rolls and falls |
 | Bowling ball | 2×2 | Heavy. Knocks big things over |
@@ -54,10 +54,10 @@ The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, 
 | File | What |
 |---|---|
 | `vendor/libs.js` | Three.js + cannon-es, exposed as `THREE` and `CANNON` globals. |
-| `src/gizmos.js` | Gizmo registry. Each gizmo has `makeMesh()` (looks), `makeBody()` (physics), a footprint (`w`,`h`) and an `offset` inside its cell. Multi-part gizmos (seesaw, fan, pendulum) use `makeBodies(group)` to return several bodies plus constraints, and optional `onStep` / `onFrame` hooks. |
+| `src/gadgets.js` | Gadget registry (code still says "gadget"). Each gadget has `makeMesh()` (looks), `makeBody()` (physics), a footprint (`w`,`h`) and an `offset` inside its cell. Multi-part gadgets (seesaw, fan, pendulum) use `makeBodies(group)` to return several bodies plus constraints, and optional `onStep` / `onFrame` hooks. |
 | `src/main.js` | Scene, cameras, board state, drag/drop, play loop. |
 | `src/style.css` | Tray and buttons. |
 
 ### Swapping in real 3D assets
 
-Each gizmo's `makeMesh()` returns any `THREE.Object3D`. Replace the placeholder geometry with a loaded GLTF (scaled to fit the footprint, origin at the cell center + `offset`) and nothing else needs to change. `makeBody()` stays as the simple collision shape.
+Each gadget's `makeMesh()` returns any `THREE.Object3D`. Replace the placeholder geometry with a loaded GLTF (scaled to fit the footprint, origin at the cell center + `offset`) and nothing else needs to change. `makeBody()` stays as the simple collision shape.

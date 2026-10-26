@@ -137,10 +137,10 @@ function applyTransform(item) {
   const { position, quaternion } = itemTransform(item);
   item.mesh.position.copy(position);
   item.mesh.quaternion.copy(quaternion);
-  GIZMOS[item.type].applyRot?.(item);
+  GADGETS[item.type].applyRot?.(item);
 }
 
-// Gizmo visuals may be a single mesh or a group; these apply to every mesh inside.
+// Gadget visuals may be a single mesh or a group; these apply to every mesh inside.
 function eachMesh(obj, fn) {
   obj.traverse((o) => { if (o.isMesh) fn(o); });
 }
@@ -167,7 +167,7 @@ function restoreRest(obj) {
 }
 
 function addItem(type, x, y, rot = 0) {
-  const item = { id: nextId++, type, x, y, rot, mesh: GIZMOS[type].makeMesh(), parts: null };
+  const item = { id: nextId++, type, x, y, rot, mesh: GADGETS[type].makeMesh(), parts: null };
   items.set(item.id, item);
   footprintCells(type, x, y, rot).forEach(([cx, cy]) => occupied.set(key(cx, cy), item.id));
   applyTransform(item);
@@ -256,7 +256,7 @@ function updateHistoryButtons() {
 // example name. Saved (debounced) after every board change or view move.
 // ---------------------------------------------------------------------------
 
-const SAVE_KEY = 'gizmo-garage.save.v1';
+const SAVE_KEY = 'gadget-garage.save.v1';
 let saveTimer = null;
 
 function scheduleSave() {
@@ -283,7 +283,7 @@ function loadProgress() {
   if (!data || !Array.isArray(data.items)) return false;
   clearBoard();
   for (const s of data.items) {
-    if (GIZMOS[s.type] && canPlace(s.type, s.x, s.y, s.rot || 0)) addItem(s.type, s.x, s.y, s.rot || 0);
+    if (GADGETS[s.type] && canPlace(s.type, s.x, s.y, s.rot || 0)) addItem(s.type, s.x, s.y, s.rot || 0);
   }
   if (data.view) { view.cx = data.view.cx; view.cy = data.view.cy; view.zoom = data.view.zoom; }
   if (data.mode === '3d') setMode('3d');
@@ -324,13 +324,13 @@ function startPlay() {
   // Gadget forces (fan etc.) run inside each physics sub-step, never per
   // frame: at 120 Hz a frame may run no sub-step, and forces would pile up.
   world.addEventListener('preStep', () => {
-    for (const item of items.values()) GIZMOS[item.type].onStep?.(item, world, world.dt);
+    for (const item of items.values()) GADGETS[item.type].onStep?.(item, world, world.dt);
   });
 
   scene.updateMatrixWorld(true);
   const wp = new THREE.Vector3(), wq = new THREE.Quaternion();
   for (const item of items.values()) {
-    const def = GIZMOS[item.type];
+    const def = GADGETS[item.type];
     const built = def.makeBodies
       ? def.makeBodies(item.mesh)
       : { parts: [{ body: def.makeBody(), mesh: item.mesh }], constraints: [] };
@@ -407,7 +407,7 @@ function stepPhysics(dt) {
     for (const part of item.parts) {
       if (part.mesh && part.body.mass > 0) syncPart(item, part);
     }
-    GIZMOS[item.type].onFrame?.(item, dt);
+    GADGETS[item.type].onFrame?.(item, dt);
   }
 }
 
@@ -427,7 +427,7 @@ function pointerToWorld(ev) {
   return raycaster.ray.intersectPlane(boardPlane, hit) ? hit : null;
 }
 
-// Where the dragged gizmo floats (un-snapped) and the cell it would land in.
+// Where the dragged gadget floats (un-snapped) and the cell it would land in.
 // `grab` is the pointer-to-anchor offset so a picked-up item doesn't jump.
 function dragTarget(ev, size, grab) {
   const p = pointerToWorld(ev);
@@ -438,7 +438,7 @@ function dragTarget(ev, size, grab) {
 }
 
 // Short ease-out animation into place: slide (and turn, if the rotation
-// changed) from wherever the gizmo was into its cell, both at once.
+// changed) from wherever the gadget was into its cell, both at once.
 const tweens = new Map(); // mesh -> { from, to, fromQ, toQ, t }
 const SNAP_SECONDS = 0.2;
 const easeOut = (t) => 1 - Math.pow(1 - t, 3);
@@ -485,7 +485,7 @@ function pickItem(ev) {
 let drag = null; // { kind: 'new'|'move'|'pan', ... }
 
 function beginNewDrag(type, ev) {
-  const ghost = GIZMOS[type].makeMesh();
+  const ghost = GADGETS[type].makeMesh();
   eachMesh(ghost, (m) => { m.material = ghostMat; m.castShadow = false; });
   ghost.visible = false;
   scene.add(ghost);
@@ -613,7 +613,7 @@ window.addEventListener('keydown', (ev) => {
 // can't rotate that way (not rotatable, at the swing limit, or the turned
 // footprint doesn't fit).
 function nextRotation(item, dir) {
-  const def = GIZMOS[item.type];
+  const def = GADGETS[item.type];
   if (!def.rotatable) return null;
   const rot = def.swing
     ? THREE.MathUtils.clamp((item.rot || 0) + dir, def.swing.min, def.swing.max)
@@ -622,11 +622,11 @@ function nextRotation(item, dir) {
   return canPlace(item.type, item.x, item.y, rot, item.id) ? rot : null;
 }
 
-// Turn the selected (or being-dragged) gizmo a quarter turn.
+// Turn the selected (or being-dragged) gadget a quarter turn.
 // dir = +1 counter-clockwise, -1 clockwise.
 function rotateSelected(dir = 1) {
-  if (drag?.kind === 'new' && GIZMOS[drag.type].rotatable) {
-    const def = GIZMOS[drag.type];
+  if (drag?.kind === 'new' && GADGETS[drag.type].rotatable) {
+    const def = GADGETS[drag.type];
     if (def.swing) {
       drag.rot = THREE.MathUtils.clamp(drag.rot + dir, def.swing.min, def.swing.max);
       def.applyRot({ mesh: drag.ghost, rot: drag.rot });
@@ -636,7 +636,7 @@ function rotateSelected(dir = 1) {
     return;
   }
   if (!selected || playing) return;
-  const def = GIZMOS[selected.type];
+  const def = GADGETS[selected.type];
   const rot = nextRotation(selected, dir);
   if (rot === null) return;
   if (def.swing) {
@@ -672,7 +672,7 @@ const itemTools = document.getElementById('item-tools');
 const toolRotateCcw = document.getElementById('tool-rotate-ccw');
 const toolRotateCw = document.getElementById('tool-rotate-cw');
 const toolDelete = document.getElementById('tool-delete');
-const trayList = document.getElementById('gizmo-list');
+const trayList = document.getElementById('gadget-list');
 
 btnPlay.onclick = startPlay;
 btnReset.onclick = stopPlay;
@@ -685,7 +685,7 @@ toolDelete.onclick = () => { if (selected && !playing) { recordEdit(); removeIte
 // Clicks on the floating tools must not reach the board underneath.
 itemTools.addEventListener('pointerdown', (ev) => ev.stopPropagation());
 
-// Float the rotate/delete buttons just above the selected gizmo.
+// Float the rotate/delete buttons just above the selected gadget.
 const _corner = new THREE.Vector3();
 const _bbox = new THREE.Box3();
 function updateItemTools() {
@@ -712,10 +712,10 @@ function updateItemTools() {
 btnView.onclick = () => setMode(mode === '2d' ? '3d' : '2d');
 btnHome.onclick = homeView;
 
-for (const type of GIZMO_ORDER) {
-  const def = GIZMOS[type];
+for (const type of GADGET_ORDER) {
+  const def = GADGETS[type];
   const card = document.createElement('div');
-  card.className = 'gizmo-card';
+  card.className = 'gadget-card';
   card.innerHTML = `<div class="icon">${def.icon}</div><div class="name">${def.name}</div><div class="hint">${def.hint}</div>`;
   card.addEventListener('pointerdown', (ev) => { if (!playing) beginNewDrag(type, ev); });
   trayList.appendChild(card);
@@ -835,7 +835,7 @@ function frame() {
     for (const item of items.values()) if (item.type === 'star') item.mesh.rotation.y += dt * 4;
   }
   if (!playing) {
-    for (const item of items.values()) if (GIZMOS[item.type].idleFrame) GIZMOS[item.type].onFrame(item, dt);
+    for (const item of items.values()) if (GADGETS[item.type].idleFrame) GADGETS[item.type].onFrame(item, dt);
   }
   updateItemTools();
 

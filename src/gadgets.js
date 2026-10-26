@@ -1,10 +1,10 @@
-// Gizmo registry.
+// Gadget registry.
 //
-// Each gizmo separates *how it looks* (makeMesh) from *how it behaves*
+// Each gadget separates *how it looks* (makeMesh) from *how it behaves*
 // (makeBody). Swap makeMesh for a loaded 3D asset later without touching
 // the physics or the game logic.
 //
-// Coordinates: a gizmo's "anchor" is the bottom-left cell of its footprint.
+// Coordinates: a gadget's "anchor" is the bottom-left cell of its footprint.
 // Meshes and bodies are positioned relative to the anchor cell's origin
 // (the cell spans x..x+1, y..y+1, z -0.5..0.5).
 
@@ -88,7 +88,7 @@ const MATS = {
   bouncy: new CANNON.Material('bouncy'),
 };
 
-// Multi-part gizmos: makeMesh() returns a THREE.Group with named children,
+// Multi-part gadgets: makeMesh() returns a THREE.Group with named children,
 // and makeBodies(group) returns { parts: [{ body, mesh }], constraints }.
 // Each part's body starts at its mesh's world transform; dynamic parts drive
 // their mesh during play. mesh may be null for a body with no moving visual.
@@ -101,7 +101,7 @@ function named(mesh, name) {
 
 const Z_AXIS = new CANNON.Vec3(0, 0, 1);
 
-const GIZMOS = {
+const GADGETS = {
   marble: {
     name: 'Marble',
     icon: '🔵',
@@ -389,26 +389,26 @@ const GIZMOS = {
 };
 
 // Rope needs drawing before play too.
-GIZMOS.pendulum._makeMesh = GIZMOS.pendulum.makeMesh;
-GIZMOS.pendulum.makeMesh = function () {
+GADGETS.pendulum._makeMesh = GADGETS.pendulum.makeMesh;
+GADGETS.pendulum.makeMesh = function () {
   const g = this._makeMesh();
   this.onFrame({ mesh: g });
   return g;
 };
 
-const GIZMO_ORDER = ['marble', 'bowling', 'domino', 'ramp', 'longramp', 'block', 'seesaw', 'bouncer', 'fan', 'pendulum', 'star'];
+const GADGET_ORDER = ['marble', 'bowling', 'domino', 'ramp', 'longramp', 'block', 'seesaw', 'bouncer', 'fan', 'pendulum', 'star'];
 
 // Footprint size after `rot` quarter turns (odd turns swap width and height).
 function footprintSize(type, rot = 0) {
-  const def = GIZMOS[type];
-  if (def.swing) return { w: def.w, h: def.h }; // swinging gizmos never turn
+  const def = GADGETS[type];
+  if (def.swing) return { w: def.w, h: def.h }; // swinging gadgets never turn
   return rot % 2 ? { w: def.h, h: def.w } : { w: def.w, h: def.h };
 }
 
 // World-space transform for an item at cell (x, y), turned `rot` quarter
 // turns counter-clockwise about the center of its footprint.
 function itemTransform(item) {
-  const def = GIZMOS[item.type];
+  const def = GADGETS[item.type];
   const rot = def.swing ? 0 : (item.rot || 0);
   const angle = rot * Math.PI / 2;
   const quaternion = new THREE.Quaternion().setFromAxisAngle(Z_AXIS_THREE, angle);
@@ -421,7 +421,7 @@ function itemTransform(item) {
 }
 
 function footprintCells(type, x, y, rot = 0) {
-  const def = GIZMOS[type];
+  const def = GADGETS[type];
   if (def.footprint) return def.footprint(rot).map(([i, j]) => [x + i, y + j]);
   const { w, h } = footprintSize(type, rot);
   const cells = [];
