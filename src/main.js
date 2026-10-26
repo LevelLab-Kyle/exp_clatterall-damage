@@ -175,6 +175,7 @@ function addItem(type, x, y, rot = 0) {
   setHighlight(item, false); // records each mesh's base glow
   item.mesh.userData.itemId = item.id;
   scene.add(item.mesh);
+  scheduleSave();
   return item;
 }
 
@@ -185,6 +186,7 @@ function moveItem(item, x, y, rot = item.rot) {
   item.rot = rot;
   footprintCells(item.type, x, y, rot).forEach(([cx, cy]) => occupied.set(key(cx, cy), item.id));
   applyTransform(item);
+  scheduleSave();
 }
 
 function removeItem(item) {
@@ -193,6 +195,7 @@ function removeItem(item) {
   tweens.delete(item.mesh);
   scene.remove(item.mesh);
   if (selected === item) select(null);
+  scheduleSave();
 }
 
 function select(item) {
@@ -246,6 +249,46 @@ function redo() {
 function updateHistoryButtons() {
   btnUndo.disabled = playing || !history.undo.length;
   btnRedo.disabled = playing || !history.redo.length;
+}
+
+// ---------------------------------------------------------------------------
+// Progress is kept in localStorage: the board, the view and the current
+// example name. Saved (debounced) after every board change or view move.
+// ---------------------------------------------------------------------------
+
+const SAVE_KEY = 'gizmo-garage.save.v1';
+let saveTimer = null;
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveProgress, 250);
+}
+
+function saveProgress() {
+  saveTimer = null;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      items: snapshot(),
+      view: { cx: view.cx, cy: view.cy, zoom: view.zoom },
+      mode,
+      example: examplesSelect.value,
+    }));
+  } catch { /* private mode or storage full: just don't save */ }
+}
+
+// Returns true if a saved board was restored.
+function loadProgress() {
+  let data;
+  try { data = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch { return false; }
+  if (!data || !Array.isArray(data.items)) return false;
+  clearBoard();
+  for (const s of data.items) {
+    if (GIZMOS[s.type] && canPlace(s.type, s.x, s.y, s.rot || 0)) addItem(s.type, s.x, s.y, s.rot || 0);
+  }
+  if (data.view) { view.cx = data.view.cx; view.cy = data.view.cy; view.zoom = data.view.zoom; }
+  if (data.mode === '3d') setMode('3d');
+  if (data.example && EXAMPLES[data.example]) examplesSelect.value = data.example;
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -489,6 +532,7 @@ function endDrag(ev) {
   const d = drag;
   drag = null;
   canvas.classList.remove('dragging');
+  if (d.kind === 'pan') scheduleSave();
   if (d.kind === 'new') {
     scene.remove(d.ghost);
     if (d.cell && canPlace(d.type, d.cell.x, d.cell.y, d.rot)) {
@@ -540,6 +584,7 @@ canvas.addEventListener('contextmenu', (ev) => {
 
 canvas.addEventListener('wheel', (ev) => {
   ev.preventDefault();
+  scheduleSave();
   if (ev.ctrlKey || ev.metaKey) {
     view.zoom = THREE.MathUtils.clamp(view.zoom * Math.exp(-ev.deltaY * 0.01), 0.25, 3);
   } else {
@@ -672,6 +717,7 @@ for (const type of GIZMO_ORDER) {
 
 function setMode(next) {
   mode = next;
+  scheduleSave();
   btnView.textContent = next === '2d' ? '3D view' : 'Flat view';
   backdrop.visible = next === '2d';
   renderPass.camera = activeCamera();
@@ -774,6 +820,7 @@ function loadExample(name) {
   examplesSelect.value = name;
 }
 
-loadExample('Domino Run');
+if (!loadProgress()) loadExample('Domino Run');
+window.addEventListener('beforeunload', () => { if (saveTimer) saveProgress(); });
 setMode('2d');
 frame();
