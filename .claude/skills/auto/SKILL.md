@@ -1,6 +1,6 @@
 ---
 name: auto
-description: Stage, syntax-check, smoke-test in the browser, then commit and push the current work on Gadget Garage. Use when the user says /auto or asks to "ship it".
+description: Stage, syntax-check, smoke-test in the browser, then commit and push the current work on Clatter Lab. Use when the user says /auto or asks to "ship it".
 ---
 
 # /auto — stage, test, smoke test, commit, push

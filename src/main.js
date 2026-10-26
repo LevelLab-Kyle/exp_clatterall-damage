@@ -256,7 +256,7 @@ function updateHistoryButtons() {
 // example name. Saved (debounced) after every board change or view move.
 // ---------------------------------------------------------------------------
 
-const SAVE_KEY = 'gadget-garage.save.v1';
+const SAVE_KEY = 'clatter-lab.save.v1';
 let saveTimer = null;
 
 function scheduleSave() {

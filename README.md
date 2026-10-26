@@ -1,4 +1,4 @@
-# Gadget Garage
+# Clatter Lab
 
 Prototype of a kids' Rube Goldberg builder. Drag gadgets onto a voxel board, press Play, watch it go.
 
