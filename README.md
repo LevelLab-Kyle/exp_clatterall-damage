@@ -55,9 +55,10 @@ The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, 
 |---|---|
 | `vendor/libs.js` | Three.js + cannon-es, exposed as `THREE` and `CANNON` globals. |
 | `src/gadgets.js` | Gadget registry (code still says "gadget"). Each gadget has `makeMesh()` (looks), `makeBody()` (physics), a footprint (`w`,`h`) and an `offset` inside its cell. Multi-part gadgets (seesaw, fan, pendulum) use `makeBodies(group)` to return several bodies plus constraints, and optional `onStep` / `onFrame` hooks. |
-| `src/main.js` | Scene, cameras, board state, drag/drop, play loop. |
+| `src/main.js` | Scene, cameras, board state, drag/drop, play loop, sounds. |
+| `assets/sounds.js` | Four short sound effects, base64-embedded (see `assets/README.md`). |
 | `src/style.css` | Chrome, on the [Level Lab design system](https://levellab.com/style): dark theme, Roboto, 5px grid, `.button` / `.button-accent` / `.button-icon`. Tokens are copied in so the page still works offline. |
 
 ### Swapping in real 3D assets
 
-Each gadget's `makeMesh()` returns any `THREE.Object3D`. Replace the placeholder geometry with a loaded GLTF (scaled to fit the footprint, origin at the cell center + `offset`) and nothing else needs to change. `makeBody()` stays as the simple collision shape.
+Each gadget's `makeMesh()` returns any `THREE.Object3D`. Replace the placeholder geometry with a loaded GLTF (scaled to fit the footprint, origin at the cell center + `offset`) and nothing else needs to change. `makeBody()` stays as the simple collision shape. Sounds play on impacts (tap / thud / boing by what hit what) and on winning; the 🔊 button mutes them.

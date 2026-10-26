@@ -341,6 +341,7 @@ function startPlay() {
       part.body.position.copy(wp);
       part.body.quaternion.copy(wq);
       world.addBody(part.body);
+      if (part.body.mass > 0) part.body.addEventListener('collide', (ev) => onImpact(part.body, ev));
     }
     built.constraints.forEach((c) => world.addConstraint(c));
     item.parts = built.parts;
@@ -357,6 +358,8 @@ function startPlay() {
 
 function stopPlay() {
   playing = false;
+  audioArmed = false;
+  lastImpact.clear();
   canvas.classList.remove('hover');
   won = false;
   world = null;
@@ -376,9 +379,54 @@ function stopPlay() {
 function onGoalHit(star) {
   if (won) return;
   won = true;
-  star.mesh.material.emissive.set(0xffaa00);
+  eachMesh(star.mesh, (m) => m.material.emissive?.set(0xffaa00));
   toast.textContent = '⭐ You did it!';
   toast.hidden = false;
+  playSound('win', 0.8);
+}
+
+// ---------------------------------------------------------------------------
+// Sounds (assets/sounds.js). Only play during a run the user started with
+// the Play button or Space, so scripted/synchronous runs stay silent.
+// ---------------------------------------------------------------------------
+
+const SOUND_KEY = 'clatter-lab.sound';
+const sounds = {};
+for (const [key, b64] of Object.entries(typeof SOUND_DATA === 'undefined' ? {} : SOUND_DATA)) {
+  sounds[key] = new Audio('data:audio/mpeg;base64,' + b64);
+  sounds[key].preload = 'auto';
+}
+let soundOn = true;
+try { soundOn = localStorage.getItem(SOUND_KEY) !== 'off'; } catch {}
+let audioArmed = false; // true during a user-started run
+const lastImpact = new Map(); // body -> time of its last sound
+
+function playSound(key, volume = 1) {
+  if (!audioArmed || !soundOn || !sounds[key]) return;
+  const a = sounds[key].cloneNode();
+  a.volume = Math.min(1, Math.max(0, volume));
+  a.play().catch(() => {});
+}
+
+// Pick a sound for a collision by what hit what, scaled by how hard.
+function onImpact(body, ev) {
+  if (!audioArmed || !soundOn) return;
+  const speed = Math.abs(ev.contact.getImpactVelocityAlongNormal());
+  if (speed < 2) return;
+  const now = performance.now();
+  if (now - (lastImpact.get(body) || 0) < 90) return;
+  lastImpact.set(body, now);
+  const other = ev.body;
+  const bouncy = body.material === MATS.bouncy || other.material === MATS.bouncy;
+  const heavy = body.mass >= 3 || other.mass >= 3;
+  playSound(bouncy ? 'boing' : heavy ? 'thud' : 'tap', Math.min(1, 0.2 + speed / 12));
+}
+
+function setSound(on) {
+  soundOn = on;
+  btnSound.textContent = on ? '🔊' : '🔇';
+  btnSound.title = on ? 'Sound on (click to mute)' : 'Sound off (click to unmute)';
+  try { localStorage.setItem(SOUND_KEY, on ? 'on' : 'off'); } catch {}
 }
 
 const _invQ = new THREE.Quaternion();
@@ -476,8 +524,11 @@ function pickItem(ev) {
   const r = canvas.getBoundingClientRect();
   pointerNdc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
   raycaster.setFromCamera(pointerNdc, activeCamera());
-  const meshes = [...items.values()].map((i) => i.mesh);
-  const hit = raycaster.intersectObjects(meshes, true)[0];
+  // Only solid meshes count as hits: the edge lines would otherwise grab
+  // clicks from up to a unit away (Three's line-picking threshold).
+  const meshes = [];
+  for (const i of items.values()) i.mesh.traverse((o) => { if (o.isMesh) meshes.push(o); });
+  const hit = raycaster.intersectObjects(meshes, false)[0];
   if (!hit) return null;
   let o = hit.object;
   while (o && o.userData.itemId == null) o = o.parent;
@@ -615,7 +666,7 @@ window.addEventListener('keydown', (ev) => {
   }
   if ((ev.metaKey || ev.ctrlKey) && ev.key === 'y') { ev.preventDefault(); redo(); }
   if (ev.key === 'Escape') select(null);
-  if (ev.key === ' ') { ev.preventDefault(); playing ? stopPlay() : startPlay(); }
+  if (ev.key === ' ') { ev.preventDefault(); if (playing) stopPlay(); else { audioArmed = true; startPlay(); } }
 });
 
 // The rotation `item` would end up with after a step in `dir`, or null if it
@@ -683,7 +734,10 @@ const toolRotateCw = document.getElementById('tool-rotate-cw');
 const toolDelete = document.getElementById('tool-delete');
 const trayList = document.getElementById('gadget-list');
 
-btnPlay.onclick = startPlay;
+btnPlay.onclick = () => { audioArmed = true; startPlay(); };
+const btnSound = document.getElementById('btn-sound');
+btnSound.onclick = () => setSound(!soundOn);
+setSound(soundOn);
 btnReset.onclick = stopPlay;
 btnClear.onclick = () => { if (!playing && items.size) { recordEdit(); clearBoard(); } };
 btnUndo.onclick = undo;
@@ -750,6 +804,7 @@ const thumbnailer = (() => {
   };
 })();
 
+function buildTray() {
 for (const type of GADGET_ORDER) {
   const def = GADGETS[type];
   const card = document.createElement('div');
@@ -758,6 +813,7 @@ for (const type of GADGET_ORDER) {
   card.innerHTML = `<img class="icon" alt="" draggable="false" src="${src}"><div class="name">${def.name}</div><div class="hint">${def.hint}</div>`;
   card.addEventListener('pointerdown', (ev) => { if (!playing) beginNewDrag(type, ev); });
   trayList.appendChild(card);
+}
 }
 
 function setMode(next) {
@@ -907,6 +963,7 @@ function loadExample(name) {
   examplesSelect.value = name;
 }
 
+buildTray();
 if (!loadProgress()) loadExample('Domino Run');
 // Start exactly on the grid, no easing.
 snapView();

@@ -26,6 +26,19 @@ function standard(color, extra = {}) {
 function shadowed(mesh) {
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+  return edged(mesh);
+}
+
+// Thin dark edge lines on every part, so pieces placed side by side read as
+// separate things instead of one merged shape. (Smooth shapes like spheres
+// have no hard edges and get none.)
+const EDGE_MATERIAL = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5 });
+function edged(mesh) {
+  // Push the surface back a hair so the lines on it don't z-fight.
+  mesh.material.polygonOffset = true;
+  mesh.material.polygonOffsetFactor = 1;
+  mesh.material.polygonOffsetUnits = 1;
+  mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 20), EDGE_MATERIAL));
   return mesh;
 }
 
@@ -277,7 +290,7 @@ const GADGETS = {
         b.rotation.z = (i * Math.PI) / 3;
         blade.add(b);
       }
-      blade.add(new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.03, 8, 32), standard(0x5a6b7a)));
+      blade.add(shadowed(new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.03, 8, 32), standard(0x5a6b7a))));
       g.add(blade);
       return g;
     },
@@ -349,7 +362,7 @@ const GADGETS = {
       const ball = named(shadowed(new THREE.Mesh(new THREE.SphereGeometry(this.ballRadius, 32, 24), standard(0x5a5a68, { roughness: 0.3, metalness: 0.3 }))), 'ball');
       ball.position.copy(this.ballRest(0));
       g.add(ball);
-      const rope = named(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1, 8), standard(0x333333)), 'rope');
+      const rope = named(shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1, 8), standard(0x333333))), 'rope');
       g.add(rope);
       return g;
     },

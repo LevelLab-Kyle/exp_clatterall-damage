@@ -42,7 +42,7 @@ EOF
 
 Then, with the claude-in-chrome tools (load them with one ToolSearch call: `tabs_context_mcp, navigate, javascript_tool, read_console_messages, computer, browser_batch`):
 
-1. `navigate` to `http://127.0.0.1:8077/index.html?r=<random>` and wait ~1.5 s.
+1. `navigate` to `http://127.0.0.1:8077/index.html?r=<random>` and wait ~2 s.
 2. Run this with `javascript_tool` and require every line to say `ok`:
 
 ```js
