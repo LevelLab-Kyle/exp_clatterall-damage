@@ -1,7 +1,8 @@
 // Gadget registry.
 //
 // Each gadget separates *how it looks* (makeMesh) from *how it behaves*
-// (makeBody). Swap makeMesh for a loaded 3D asset later without touching
+// (makeBody). The tray picture is rendered from makeMesh() too; set `image`
+// to a URL to use a hand-made picture instead. Swap makeMesh for a loaded 3D asset later without touching
 // the physics or the game logic.
 //
 // Coordinates: a gadget's "anchor" is the bottom-left cell of its footprint.
@@ -104,7 +105,6 @@ const Z_AXIS = new CANNON.Vec3(0, 0, 1);
 const GADGETS = {
   marble: {
     name: 'Marble',
-    icon: '🔵',
     hint: 'rolls',
     w: 1, h: 1,
     dynamic: true,
@@ -119,7 +119,6 @@ const GADGETS = {
 
   domino: {
     name: 'Domino',
-    icon: '🀫',
     hint: 'tips over',
     w: 1, h: 2,
     rotatable: true,
@@ -136,7 +135,6 @@ const GADGETS = {
 
   ramp: {
     name: 'Ramp',
-    icon: '◢',
     hint: 'rotates',
     w: 1, h: 1,
     rotatable: true,
@@ -151,7 +149,6 @@ const GADGETS = {
 
   longramp: {
     name: 'Long ramp',
-    icon: '◢◢',
     hint: 'rotates',
     w: 2, h: 1,
     rotatable: true,
@@ -166,7 +163,6 @@ const GADGETS = {
 
   block: {
     name: 'Block',
-    icon: '🟫',
     hint: 'solid',
     w: 1, h: 1,
     makeMesh() {
@@ -180,7 +176,6 @@ const GADGETS = {
 
   star: {
     name: 'Star',
-    icon: '⭐',
     hint: 'the goal!',
     w: 1, h: 1,
     goal: true,
@@ -206,7 +201,6 @@ const GADGETS = {
 
   bowling: {
     name: 'Bowling ball',
-    icon: '🎳',
     hint: 'heavy',
     w: 2, h: 2,
     dynamic: true,
@@ -221,7 +215,6 @@ const GADGETS = {
 
   bouncer: {
     name: 'Bouncer',
-    icon: '🛏',
     hint: 'boing!',
     w: 1, h: 1,
     rotatable: true,
@@ -241,7 +234,6 @@ const GADGETS = {
 
   seesaw: {
     name: 'Seesaw',
-    icon: '⚖️',
     hint: 'tips',
     w: 3, h: 1,
     makeMesh() {
@@ -270,7 +262,6 @@ const GADGETS = {
 
   fan: {
     name: 'Fan',
-    icon: '🌀',
     hint: 'rotates',
     w: 1, h: 1,
     rotatable: true,
@@ -320,7 +311,6 @@ const GADGETS = {
 
   pendulum: {
     name: 'Pendulum',
-    icon: '🪀',
     hint: 'swings',
     w: 1, h: 3,
     // Rotate doesn't turn the pendulum; it swings the ball out one column at

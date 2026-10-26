@@ -712,11 +712,41 @@ function updateItemTools() {
 btnView.onclick = () => setMode(mode === '2d' ? '3d' : '2d');
 btnHome.onclick = homeView;
 
+// Tray pictures are rendered from each gadget's own model (a small 3/4 view),
+// so they always match the board. A gadget can supply `image` (a URL) instead.
+const thumbnailer = (() => {
+  const SIZE = 128;
+  const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  r.setSize(SIZE, SIZE, false);
+  r.setPixelRatio(2);
+  r.outputColorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Scene();
+  s.add(new THREE.HemisphereLight(0xffffff, 0xb8a98a, 1.1));
+  const key = new THREE.DirectionalLight(0xffffff, 1.6);
+  key.position.set(3, 6, 5);
+  s.add(key);
+  const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
+  return (mesh) => {
+    s.add(mesh);
+    mesh.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(mesh);
+    const center = box.getCenter(new THREE.Vector3());
+    const radius = box.getSize(new THREE.Vector3()).length() / 2;
+    const dist = radius / Math.sin(THREE.MathUtils.degToRad(cam.fov / 2)) * 1.05;
+    cam.position.copy(center).add(new THREE.Vector3(0.55, 0.45, 1).normalize().multiplyScalar(dist));
+    cam.lookAt(center);
+    r.render(s, cam);
+    s.remove(mesh);
+    return r.domElement.toDataURL('image/png');
+  };
+})();
+
 for (const type of GADGET_ORDER) {
   const def = GADGETS[type];
   const card = document.createElement('div');
   card.className = 'gadget-card';
-  card.innerHTML = `<div class="icon">${def.icon}</div><div class="name">${def.name}</div><div class="hint">${def.hint}</div>`;
+  const src = def.image || thumbnailer(def.makeMesh());
+  card.innerHTML = `<img class="icon" alt="" draggable="false" src="${src}"><div class="name">${def.name}</div><div class="hint">${def.hint}</div>`;
   card.addEventListener('pointerdown', (ev) => { if (!playing) beginNewDrag(type, ev); });
   trayList.appendChild(card);
 }

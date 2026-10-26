@@ -179,7 +179,7 @@ button[hidden] { display: none; }
 }
 .gadget-card:hover { border-color: var(--accent); transform: translateY(-2px); }
 .gadget-card:active { cursor: grabbing; transform: scale(0.96); }
-.gadget-card .icon { font-size: 30px; line-height: 1.1; }
+.gadget-card .icon { width: 48px; height: 48px; display: block; margin: 0 auto; pointer-events: none; }
 .gadget-card .name { font-size: 13px; font-weight: 800; margin-top: 2px; }
 .gadget-card .hint { font-size: 11px; opacity: 0.55; }
 
