@@ -111,7 +111,6 @@ scene.add(backdrop);
 
 // Ghost preview when dragging.
 const ghostMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
-const ghostBadMat = new THREE.MeshStandardMaterial({ color: 0xff3b3b, transparent: true, opacity: 0.5 });
 
 // ---------------------------------------------------------------------------
 // Board state
@@ -133,6 +132,24 @@ function canPlace(type, x, y, rot = 0, ignoreId = null) {
   });
 }
 
+// The free spot nearest to where a gadget was dropped. `ax, ay` is its
+// un-snapped position, so it slides toward whichever side it was closer to.
+function nearestFree(type, ax, ay, rot = 0, ignoreId = null) {
+  const x0 = Math.round(ax), y0 = Math.max(0, Math.round(ay));
+  const spots = [];
+  for (let r = 0; r <= 12; r++) {
+    for (let dx = -r; dx <= r; dx++) {
+      for (let dy = -r; dy <= r; dy++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const x = x0 + dx, y = y0 + dy;
+        if (y >= 0) spots.push({ x, y, d: Math.hypot(x - ax, y - ay) });
+      }
+    }
+  }
+  spots.sort((a, b) => a.d - b.d);
+  return spots.find((s) => canPlace(type, s.x, s.y, rot, ignoreId)) || null;
+}
+
 function applyTransform(item) {
   const { position, quaternion } = itemTransform(item);
   item.mesh.position.copy(position);
@@ -151,10 +168,6 @@ function setHighlight(item, on) {
     if (m.userData.baseEmissive === undefined) m.userData.baseEmissive = m.material.emissive.getHex();
     m.material.emissive.setHex(on ? 0x444444 : m.userData.baseEmissive);
   });
-}
-
-function setFaded(obj, on) {
-  eachMesh(obj, (m) => { m.material.transparent = on; m.material.opacity = on ? 0.5 : 1; });
 }
 
 // Remember where every sub-part sits so Reset can put moving parts back.
@@ -584,9 +597,14 @@ function updateMirrorAnims(dt) {
 }
 
 function pickItem(ev) {
-  const r = canvas.getBoundingClientRect();
-  pointerNdc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
-  raycaster.setFromCamera(pointerNdc, activeCamera());
+  // Gadgets never share a cell, so a gadget's whole cells are its hit box:
+  // a thin domino or a hollow bucket is as easy to grab as a block.
+  const p = pointerToWorld(ev);
+  if (p) {
+    const id = occupied.get(key(Math.floor(p.x), Math.floor(p.y)));
+    if (id != null) return items.get(id);
+  }
+  // Parts outside the footprint (the pendulum's rope) still pick by mesh.
   // Only solid meshes count as hits: the edge lines would otherwise grab
   // clicks from up to a unit away (Three's line-picking threshold).
   const meshes = [];
@@ -635,8 +653,6 @@ function updateDrag(ev) {
   if (drag.kind === 'new') {
     drag.ghost.visible = !!cell;
     if (cell) {
-      const ok = canPlace(drag.type, cell.x, cell.y, rot);
-      eachMesh(drag.ghost, (m) => { m.material = ok ? ghostMat : ghostBadMat; });
       const { position, quaternion } = itemTransform({ type: drag.type, x: cell.ax, y: cell.ay, rot });
       drag.ghost.position.copy(position);
       drag.ghost.quaternion.copy(quaternion);
@@ -644,10 +660,8 @@ function updateDrag(ev) {
   } else if (drag.kind === 'move') {
     if (Math.hypot(ev.clientX - drag.startX, ev.clientY - drag.startY) > 4) drag.moved = true;
     if (drag.moved && cell) {
-      const ok = canPlace(drag.item.type, cell.x, cell.y, rot, drag.item.id);
       const { position } = itemTransform({ ...drag.item, x: cell.ax, y: cell.ay });
       drag.item.mesh.position.copy(position);
-      setFaded(drag.item.mesh, !ok);
     }
   }
 }
@@ -660,18 +674,19 @@ function endDrag(ev) {
   if (d.kind === 'pan') snapView();
   if (d.kind === 'new') {
     scene.remove(d.ghost);
-    if (d.cell && canPlace(d.type, d.cell.x, d.cell.y, d.rot)) {
+    const spot = d.cell && nearestFree(d.type, d.cell.ax, d.cell.ay, d.rot);
+    if (spot) {
       recordEdit();
-      const item = addItem(d.type, d.cell.x, d.cell.y, d.rot);
+      const item = addItem(d.type, spot.x, spot.y, d.rot);
       settle(item, d.ghost.position);
       select(item);
     }
   } else if (d.kind === 'move') {
-    setFaded(d.item.mesh, false);
     const from = d.item.mesh.position.clone();
-    if (d.moved && d.cell && canPlace(d.item.type, d.cell.x, d.cell.y, d.item.rot, d.item.id)) {
-      if (d.cell.x !== d.item.x || d.cell.y !== d.item.y) recordEdit();
-      moveItem(d.item, d.cell.x, d.cell.y);
+    const spot = d.moved && d.cell && nearestFree(d.item.type, d.cell.ax, d.cell.ay, d.item.rot, d.item.id);
+    if (spot) {
+      if (spot.x !== d.item.x || spot.y !== d.item.y) recordEdit();
+      moveItem(d.item, spot.x, spot.y);
     } else {
       applyTransform(d.item);
     }
@@ -720,7 +735,7 @@ function cancelDrag() {
   drag = null;
   canvas.classList.remove('dragging');
   if (d.kind === 'new') scene.remove(d.ghost);
-  else if (d.kind === 'move') { setFaded(d.item.mesh, false); applyTransform(d.item); }
+  else if (d.kind === 'move') applyTransform(d.item);
   else if (d.kind === 'pan') snapView();
 }
 
