@@ -10,7 +10,7 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 
 | Action | How |
 |---|---|
-| Place a gadget | Drag a card from the tray onto the board. It floats freely while dragging and slides into the nearest free cell when you let go |
+| Place a gadget | Drag a card from the tray onto the board. It floats freely while dragging and slides into the nearest free spot on the quarter-cell subgrid when you let go |
 | More gadgets | Cards cut off at the tray edge fade out; the ‹ / › arrows (or a scroll/swipe over the tray) slide the next set into view |
 | Move a gadget | Drag it. The selected gadget gets a blue outline, same as the platform builder |
 | Delete | Right-click it, or select + `Delete` |
@@ -33,19 +33,19 @@ The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, 
 
 | Gadget | Size | What it does |
 |---|---|---|
-| Marble | 1×1 | Rolls and falls |
+| Marble | ¾×¾ | Rolls and falls |
 | Bowling ball | 2×2 | Heavy. Knocks big things over |
-| Domino | 1×2 | Tips over and takes the next one with it |
+| Domino | ¼×1½ | Tips over and takes the next one with it |
 | Ramp / Long ramp | 1×1 / 2×1 | Static slope. Rotate for all four orientations |
 | Block | 1×1 | Solid cube to build on |
-| Seesaw | 3×1 | Plank on a hinge. Drop something on one end to fling the other |
-| Bouncer | 1×1 | Springy pad; marbles bounce off it |
+| Seesaw | 3×¾ | Plank on a hinge. Drop something on one end to fling the other |
+| Bouncer | 1×½ | Springy pad; marbles bounce off it |
 | Fan | 1×1 | Pushes anything up to 3 cells in the direction it faces. Rotate to aim it |
-| Pendulum | 1×3 | Heavy ball on a rope. Swings when hit. Rotate swings the ball out one column at a time (up to two) left or right to start it off |
-| Plank | 3×1 | Loose board — bridges gaps, falls when pushed |
-| Bucket | 1×1 | Catches a marble (the bowling ball won't fit) |
-| Conveyor | 2×1 | Carries whatever sits on it. Rotate / flip to set the direction |
-| Launcher | 1×1 | Fires whatever is on it shortly after Play, in the direction it faces |
+| Pendulum | 1×3¼ | Heavy ball on a rope. Swings when hit. Rotate swings the ball out (two levels, 1½ and 2 across) left or right to start it off |
+| Plank | 3×¼ | Loose board — bridges gaps, falls when pushed |
+| Bucket | 1½×1 | Catches a marble (the bowling ball won't fit); the inside stays free to drop things into |
+| Conveyor | 2×½ | Carries whatever sits on it. Rotate / flip to set the direction |
+| Launcher | 1×½ | Fires whatever is on it shortly after Play, in the direction it faces |
 | Bell | 1×1 | Rings and swings when hit |
 | Star | 1×1 | The goal |
 
@@ -61,7 +61,7 @@ The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, 
 | File | What |
 |---|---|
 | `vendor/libs.js` | Three.js + cannon-es, exposed as `THREE` and `CANNON` globals. |
-| `src/gadgets.js` | Gadget registry (code still says "gadget"). Each gadget has `makeMesh()` (looks), `makeBody()` (physics), a footprint (`w`,`h`) and an `offset` inside its cell. Multi-part gadgets (seesaw, fan, pendulum) use `makeBodies(group)` to return several bodies plus constraints, and optional `onStep` / `onFrame` hooks. |
+| `src/gadgets.js` | Gadget registry (code still says "gadget"). Each gadget has `makeMesh()` (looks), `makeBody()` (physics), a footprint box (`w`,`h`, multiples of ¼; an optional `footprint()` lists just the quarter cells it really fills) and an `offset` inside that box. Multi-part gadgets (seesaw, fan, pendulum) use `makeBodies(group)` to return several bodies plus constraints, and optional `onStep` / `onFrame` hooks. |
 | `src/main.js` | Scene, cameras, board state, drag/drop, play loop, sounds. |
 | `assets/sounds.js` | Four short sound effects, base64-embedded (see `assets/README.md`). |
 | `src/style.css` | Chrome, on the [Level Lab design system](https://levellab.com/style): dark theme, Roboto, 5px grid, `.button` / `.button-accent` / `.button-icon`. Tokens are copied in so the page still works offline. |

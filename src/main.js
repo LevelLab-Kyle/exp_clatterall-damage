@@ -110,7 +110,13 @@ const backdrop = new THREE.Mesh(
       void main() {
         vec2 g = abs(fract(vWorld - 0.5) - 0.5) / fwidth(vWorld);
         float line = 1.0 - min(min(g.x, g.y), 1.0);
-        vec3 c = mix(uSky, uLine, line * uGrid);
+        // Fainter quarter lines between, fading out as they crowd together
+        // when zoomed out.
+        vec2 q = vWorld * 4.0;
+        vec2 gq = abs(fract(q - 0.5) - 0.5) / fwidth(q);
+        float quarter = 1.0 - min(min(gq.x, gq.y), 1.0);
+        float room = smoothstep(6.0, 14.0, 1.0 / max(fwidth(q).x, fwidth(q).y));
+        vec3 c = mix(uSky, uLine, max(line, quarter * 0.35 * room) * uGrid);
         if (vWorld.y < 0.0) c = vec3(0.47, 0.67, 0.33);
         gl_FragColor = vec4(c, 1.0);
       }`,
@@ -127,7 +133,7 @@ const ghostMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: 
 // ---------------------------------------------------------------------------
 
 const items = new Map(); // id -> item
-const occupied = new Map(); // "x,y" -> id
+const occupied = new Map(); // "i,j" subgrid cell -> id (see footprintCells)
 let nextId = 1;
 let selected = null;
 let playing = false;
@@ -144,14 +150,16 @@ function canPlace(type, x, y, rot = 0, ignoreId = null) {
 
 // The free spot nearest to where a gadget was dropped. `ax, ay` is its
 // un-snapped position, so it slides toward whichever side it was closer to.
+// Spots are on the subgrid, up to 8 cells away.
+const snapSub = (v) => Math.round(v * SUB) / SUB;
 function nearestFree(type, ax, ay, rot = 0, ignoreId = null) {
-  const x0 = Math.round(ax), y0 = Math.max(0, Math.round(ay));
+  const x0 = snapSub(ax), y0 = Math.max(0, snapSub(ay));
   const spots = [];
-  for (let r = 0; r <= 12; r++) {
+  for (let r = 0; r <= 8 * SUB; r++) {
     for (let dx = -r; dx <= r; dx++) {
       for (let dy = -r; dy <= r; dy++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-        const x = x0 + dx, y = y0 + dy;
+        const x = x0 + dx / SUB, y = y0 + dy / SUB;
         if (y >= 0) spots.push({ x, y, d: Math.hypot(x - ax, y - ay) });
       }
     }
@@ -532,7 +540,7 @@ function dragTarget(ev, size, grab) {
   if (!p) return null;
   const ax = grab ? p.x + grab.x : p.x - size.w / 2;
   const ay = grab ? p.y + grab.y : p.y - size.h / 2;
-  return { ax, ay, x: Math.round(ax), y: Math.round(ay) };
+  return { ax, ay, x: snapSub(ax), y: snapSub(ay) };
 }
 
 // Short ease-out animation into place: slide (and turn, if the rotation
@@ -607,11 +615,11 @@ function updateMirrorAnims(dt) {
 }
 
 function pickItem(ev) {
-  // Gadgets never share a cell, so a gadget's whole cells are its hit box:
-  // a thin domino or a hollow bucket is as easy to grab as a block.
+  // Gadgets never share a subgrid cell, so the cells a gadget takes up are
+  // its hit box: a thin domino is as easy to grab as its box.
   const p = pointerToWorld(ev);
   if (p) {
-    const id = occupied.get(key(Math.floor(p.x), Math.floor(p.y)));
+    const id = occupied.get(key(Math.floor(p.x * SUB), Math.floor(p.y * SUB)));
     if (id != null) return items.get(id);
   }
   // Parts outside the footprint (the pendulum's rope) still pick by mesh.
@@ -849,7 +857,23 @@ function nextRotation(item, dir) {
     ? THREE.MathUtils.clamp((item.rot || 0) + dir, def.swing.min, def.swing.max)
     : ((item.rot || 0) + dir + 4) % 4;
   if (rot === (item.rot || 0)) return null;
-  return canPlace(item.type, item.x, item.y, rot, item.id) ? rot : null;
+  return turnedAnchor(item, rot) ? rot : null;
+}
+
+// Where `item` sits after turning to `rot`, or null if it doesn't fit.
+// It turns about its own center, so a long thin piece spins in place; if
+// that spot is taken it keeps its bottom-left corner instead.
+function turnedAnchor(item, rot) {
+  const spots = [];
+  if (!GADGETS[item.type].swing) {
+    const was = footprintSize(item.type, item.rot), now = footprintSize(item.type, rot);
+    spots.push({
+      x: snapSub(item.x + (was.w - now.w) / 2),
+      y: Math.max(0, snapSub(item.y + (was.h - now.h) / 2)),
+    });
+  }
+  spots.push({ x: item.x, y: item.y });
+  return spots.find((at) => canPlace(item.type, at.x, at.y, rot, item.id)) || null;
 }
 
 // What flipping `item` across the vertical ('h') or horizontal ('v') axis
@@ -911,7 +935,8 @@ function rotateSelected(dir = 1) {
   const from = selected.mesh.position.clone();
   const fromQ = selected.mesh.quaternion.clone();
   recordEdit();
-  moveItem(selected, selected.x, selected.y, rot);
+  const at = turnedAnchor(selected, rot);
+  moveItem(selected, at.x, at.y, rot);
   settle(selected, from, fromQ); // turns and slides into the cell together
 }
 
@@ -1162,7 +1187,7 @@ function homeView() {
   let minX = Infinity, maxX = -Infinity, maxY = 0;
   for (const item of items.values()) {
     for (const [cx, cy] of footprintCells(item.type, item.x, item.y, item.rot)) {
-      minX = Math.min(minX, cx); maxX = Math.max(maxX, cx + 1); maxY = Math.max(maxY, cy + 1);
+      minX = Math.min(minX, cx / SUB); maxX = Math.max(maxX, (cx + 1) / SUB); maxY = Math.max(maxY, (cy + 1) / SUB);
     }
   }
   if (!items.size) { minX = 0; maxX = 16; maxY = 0; }

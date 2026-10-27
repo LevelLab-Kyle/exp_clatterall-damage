@@ -5,9 +5,11 @@
 // to a URL to use a hand-made picture instead. Swap makeMesh for a loaded 3D asset later without touching
 // the physics or the game logic.
 //
-// Coordinates: a gadget's "anchor" is the bottom-left cell of its footprint.
-// Meshes and bodies are positioned relative to the anchor cell's origin
-// (the cell spans x..x+1, y..y+1, z -0.5..0.5).
+// Coordinates: one unit is one grid cell, and every cell splits into a 4x4
+// subgrid. Gadgets are sized so their outer edges all land on subgrid lines,
+// and they're placed on subgrid lines too. A gadget's anchor (x, y) is the
+// bottom-left corner of its footprint box (w x h units, multiples of 1/4);
+// z runs -0.5..0.5.
 
 
 const Z_AXIS_THREE = new THREE.Vector3(0, 0, 1);
@@ -94,9 +96,12 @@ function lockToPlane(body) {
   return body;
 }
 
-const MARBLE_R = 0.36;
-// Dominoes are two cells tall so each one reaches the next cell when it falls.
-const DOMINO = { w: 0.24, h: 1.6, d: 0.6 };
+// Subgrid: each cell is SUB x SUB quarter cells.
+const SUB = 4;
+
+const MARBLE_R = 0.375; // 3/4 of a cell across
+// Dominoes are taller than a cell so each one reaches the next when it falls.
+const DOMINO = { w: 0.25, h: 1.5, d: 0.6 };
 // Physics materials. Static surfaces share one so contact rules are simple.
 const MATS = {
   surface: new CANNON.Material('surface'),
@@ -106,9 +111,9 @@ const MATS = {
   bell: new CANNON.Material('bell'),
 };
 
-// Direction a gadget "faces" after rot quarter turns: local +x turned.
 const ROLLER_SPIN = 6; // conveyor roller spin, radians per second (see conveyor.onFrame)
 
+// Direction a gadget "faces" after rot quarter turns: local +x turned.
 function facing(item) {
   const a = (item.rot || 0) * Math.PI / 2;
   return { dx: Math.cos(a), dy: Math.sin(a), ux: -Math.sin(a), uy: Math.cos(a) };
@@ -131,7 +136,7 @@ const GADGETS = {
   marble: {
     name: 'Marble',
     hint: 'rolls',
-    w: 1, h: 1,
+    w: 2 * MARBLE_R, h: 2 * MARBLE_R,
     dynamic: true,
     makeMesh() {
       return shadowed(new THREE.Mesh(new THREE.SphereGeometry(MARBLE_R, 32, 24), standard(COLORS.marble, { roughness: 0.3 })));
@@ -139,13 +144,13 @@ const GADGETS = {
     makeBody() {
       return lockToPlane(new CANNON.Body({ mass: 1.2, shape: new CANNON.Sphere(MARBLE_R), material: MATS.marble }));
     },
-    offset: () => new THREE.Vector3(0.5, MARBLE_R, 0),
+    offset: () => new THREE.Vector3(MARBLE_R, MARBLE_R, 0),
   },
 
   domino: {
     name: 'Domino',
     hint: 'tips over',
-    w: 1, h: 2,
+    w: DOMINO.w, h: DOMINO.h,
     rotatable: true,
     dynamic: true,
     makeMesh() {
@@ -155,7 +160,7 @@ const GADGETS = {
       const shape = new CANNON.Box(new CANNON.Vec3(DOMINO.w / 2, DOMINO.h / 2, DOMINO.d / 2));
       return lockToPlane(new CANNON.Body({ mass: 0.15, shape, material: MATS.domino }));
     },
-    offset: () => new THREE.Vector3(0.5, DOMINO.h / 2, 0),
+    offset: () => new THREE.Vector3(DOMINO.w / 2, DOMINO.h / 2, 0),
   },
 
   ramp: {
@@ -212,7 +217,7 @@ const GADGETS = {
     goal: true,
     makeMesh() {
       const shape = new THREE.Shape();
-      const outer = 0.42, inner = 0.18;
+      const outer = 0.5, inner = 0.21;
       for (let i = 0; i < 10; i++) {
         const r = i % 2 === 0 ? outer : inner;
         const a = Math.PI / 2 + (i * Math.PI) / 5;
@@ -236,29 +241,29 @@ const GADGETS = {
     w: 2, h: 2,
     dynamic: true,
     makeMesh() {
-      return shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.9, 40, 28), standard(0x4a4668, { roughness: 0.35 })));
+      return shadowed(new THREE.Mesh(new THREE.SphereGeometry(1, 40, 28), standard(0x4a4668, { roughness: 0.35 })));
     },
     makeBody() {
-      return lockToPlane(new CANNON.Body({ mass: 6, shape: new CANNON.Sphere(0.9), material: MATS.marble }));
+      return lockToPlane(new CANNON.Body({ mass: 6, shape: new CANNON.Sphere(1), material: MATS.marble }));
     },
-    offset: () => new THREE.Vector3(1, 0.9, 0),
+    offset: () => new THREE.Vector3(1, 1, 0),
   },
 
   bouncer: {
     name: 'Bouncer',
     hint: 'boing!',
-    w: 1, h: 1,
+    w: 1, h: 0.5,
     rotatable: true,
     flipV: (item) => ({ rot: ((item.rot || 0) + 2) % 4 }),
     makeMesh() {
       const g = new THREE.Group();
-      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.3, 1), standard(0x6b5b95))).translateY(0.15));
-      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.14, 0.9), standard(0xff8fd8, { roughness: 0.4 }))).translateY(0.37));
+      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.25, 1), standard(0x6b5b95))).translateY(0.125));
+      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.25, 0.75), standard(0xff8fd8, { roughness: 0.4 }))).translateY(0.375));
       return g;
     },
     makeBody() {
       const body = new CANNON.Body({ mass: 0, material: MATS.bouncy });
-      body.addShape(new CANNON.Box(new CANNON.Vec3(0.5, 0.22, 0.5)), new CANNON.Vec3(0, 0.22, 0));
+      body.addShape(new CANNON.Box(new CANNON.Vec3(0.5, 0.25, 0.5)), new CANNON.Vec3(0, 0.25, 0));
       return body;
     },
     offset: () => new THREE.Vector3(0.5, 0, 0),
@@ -267,22 +272,25 @@ const GADGETS = {
   seesaw: {
     name: 'Seesaw',
     hint: 'tips',
-    w: 3, h: 1,
+    w: 3, h: 0.75,
+    // The plank across the top and the fulcrum under its middle; the space
+    // under each end of the plank stays free.
+    footprint: () => [...rectCells(0, 0.5, 3, 0.25), ...rectCells(1, 0, 1, 0.5)],
     makeMesh() {
       const g = new THREE.Group();
       // Fulcrum: base on the ground, point up at the hinge (local y = 0.5).
-      g.add(named(shadowed(new THREE.Mesh(fulcrumGeometry(0.7, 0.5, 0.6), standard(0x8a7f6a))), 'base'));
-      g.add(named(shadowed(new THREE.Mesh(new THREE.BoxGeometry(3, 0.16, 0.6), standard(0xf2b134))), 'plank')).children[1].position.y = 0.58;
+      g.add(named(shadowed(new THREE.Mesh(fulcrumGeometry(1, 0.5, 0.6), standard(0x8a7f6a))), 'base'));
+      g.add(named(shadowed(new THREE.Mesh(new THREE.BoxGeometry(3, 0.25, 0.6), standard(0xf2b134))), 'plank')).children[1].position.y = 0.625;
       return g;
     },
     makeBodies(g) {
       const base = new CANNON.Body({ mass: 0, material: MATS.surface });
       base.addShape(new CANNON.Box(new CANNON.Vec3(0.3, 0.25, 0.3)), new CANNON.Vec3(0, 0.25, 0));
-      const plank = lockToPlane(new CANNON.Body({ mass: 0.6, shape: new CANNON.Box(new CANNON.Vec3(1.5, 0.08, 0.3)), material: MATS.surface }));
+      const plank = lockToPlane(new CANNON.Body({ mass: 0.6, shape: new CANNON.Box(new CANNON.Vec3(1.5, 0.125, 0.3)), material: MATS.surface }));
       plank.angularDamping = 0.2;
       const hinge = new CANNON.HingeConstraint(base, plank, {
         pivotA: new CANNON.Vec3(0, 0.5, 0), axisA: Z_AXIS,
-        pivotB: new CANNON.Vec3(0, -0.08, 0), axisB: Z_AXIS,
+        pivotB: new CANNON.Vec3(0, -0.125, 0), axisB: Z_AXIS,
       });
       return {
         parts: [{ body: base, mesh: g.getObjectByName('base') }, { body: plank, mesh: g.getObjectByName('plank') }],
@@ -304,14 +312,20 @@ const GADGETS = {
       const g = new THREE.Group();
       g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.5, 1, 0.5), standard(0x5a6b7a))).translateY(0.5));
       const blade = named(new THREE.Group(), 'blade');
-      blade.position.set(0.32, 0.5, 0);
+      // The blade ring sits at the cell's right edge (it ends on x = 1), on
+      // a short axle from the post.
+      blade.position.set(0.47, 0.5, 0);
+      const axle = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.22, 12), standard(0x5a6b7a)));
+      axle.rotation.z = Math.PI / 2;
+      axle.position.set(0.36, 0.5, 0);
+      g.add(axle);
       blade.rotation.y = Math.PI / 2;
       for (let i = 0; i < 3; i++) {
         const b = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.9, 0.04), standard(0xc7e6ff, { roughness: 0.3 })));
         b.rotation.z = (i * Math.PI) / 3;
         blade.add(b);
       }
-      blade.add(shadowed(new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.03, 8, 32), standard(0x5a6b7a))));
+      blade.add(shadowed(new THREE.Mesh(new THREE.TorusGeometry(0.47, 0.03, 8, 32), standard(0x5a6b7a))));
       g.add(blade);
       return g;
     },
@@ -346,31 +360,32 @@ const GADGETS = {
   pendulum: {
     name: 'Pendulum',
     hint: 'swings',
-    w: 1, h: 3,
-    // Rotate doesn't turn the pendulum; it swings the ball out one column at
-    // a time, up to two either side (rot is -2..2). At each level the ball's
-    // outer edge sits on that column's far grid line (about 27° and 62°).
+    w: 1, h: 3.25,
+    // Rotate doesn't turn the pendulum; it swings the ball out, up to two
+    // levels either side (rot is -2..2). The rope is 2.5 long, so the ball can
+    // rest at 3-4-5 triangle points where its box lands exactly on the
+    // subgrid: straight down, 1.5 across / 2 down, or 2 across / 1.5 down.
     rotatable: true,
     flipH: (item) => (item.rot ? { rot: -item.rot } : null),
-    rope: 2.35,
-    ballRadius: 0.42,
+    pivotY: 3, // the rope hangs from the bottom of the bar (bar: y 3..3.25)
+    rope: 2.5,
+    reach: [0, 1.5, 2], // how far across the ball sits at each swing level
+    ballRadius: 0.5,
     swing: { min: -2, max: 2 },
     idleFrame: true, // keep the rope drawn while editing
-    swingAngle(rot) {
-      // ↺ (positive rot) swings the ball to the left, ↻ to the right.
-      const reach = 0.5 + Math.abs(rot) - this.ballRadius;
-      return -Math.sign(rot) * Math.asin(Math.min(1, reach / this.rope));
-    },
     ballRest(rot = 0) {
-      const a = rot ? this.swingAngle(rot) : 0;
-      return new THREE.Vector3(Math.sin(a) * this.rope, 2.85 - Math.cos(a) * this.rope, 0);
+      // ↺ (positive rot) swings the ball to the left, ↻ to the right.
+      const across = this.reach[Math.abs(rot)];
+      const down = Math.sqrt(this.rope * this.rope - across * across);
+      return new THREE.Vector3(-Math.sign(rot) * across, this.pivotY - down, 0);
     },
-    // Only the anchor and the ball take up cells (the rope doesn't), so the
+    // Only the bar and the ball take up space (the rope doesn't), so the
     // footprint moves with the swing level: swinging the ball out can change
     // which cells the pendulum needs to be free.
     footprint(rot = 0) {
       const b = this.ballRest(rot); // relative to the group origin (x + 0.5, y)
-      return [[0, 2], [Math.floor(b.x + 0.5), Math.floor(b.y)]];
+      const r = this.ballRadius;
+      return [...rectCells(0, 3, 1, 0.25), ...rectCells(b.x + 0.5 - r, b.y - r, 2 * r, 2 * r)];
     },
     applyRot(item) {
       const ball = item.mesh.getObjectByName('ball');
@@ -380,7 +395,7 @@ const GADGETS = {
     },
     makeMesh() {
       const g = new THREE.Group();
-      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.3, 0.6), standard(0x8a7f6a))).translateY(2.85));
+      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.25, 0.6), standard(0x8a7f6a))).translateY(this.pivotY + 0.125));
       const ball = named(shadowed(new THREE.Mesh(new THREE.SphereGeometry(this.ballRadius, 32, 24), standard(0x5a5a68, { roughness: 0.3, metalness: 0.3 }))), 'ball');
       ball.position.copy(this.ballRest(0));
       g.add(ball);
@@ -389,19 +404,19 @@ const GADGETS = {
       return g;
     },
     makeBodies(g) {
-      const anchor = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(0.5, 0.15, 0.3)), material: MATS.surface });
+      const anchor = new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(0.5, 0.125, 0.3)), material: MATS.surface });
       const ball = lockToPlane(new CANNON.Body({ mass: 3, shape: new CANNON.Sphere(this.ballRadius), material: MATS.marble }));
       ball.linearDamping = 0.02;
-      // Rope: pin the ball to the anchor at whatever angle it starts from.
-      const toAnchor = g.children[0].position.clone().sub(g.getObjectByName('ball').position);
-      const rope = new CANNON.PointToPointConstraint(anchor, new CANNON.Vec3(0, 0, 0), ball, new CANNON.Vec3(toAnchor.x, toAnchor.y, toAnchor.z));
+      // Rope: pin the ball to the bar's underside at whatever angle it starts from.
+      const toPivot = new THREE.Vector3(0, this.pivotY, 0).sub(g.getObjectByName('ball').position);
+      const rope = new CANNON.PointToPointConstraint(anchor, new CANNON.Vec3(0, -0.125, 0), ball, new CANNON.Vec3(toPivot.x, toPivot.y, toPivot.z));
       return {
         parts: [{ body: anchor, mesh: g.children[0] }, { body: ball, mesh: g.getObjectByName('ball') }],
         constraints: [rope],
       };
     },
     onFrame(item) {
-      const top = new THREE.Vector3(0, 2.85, 0);
+      const top = new THREE.Vector3(0, this.pivotY, 0);
       const ball = item.mesh.getObjectByName('ball').position;
       const rope = item.mesh.getObjectByName('rope');
       const dir = new THREE.Vector3().subVectors(ball, top);
@@ -415,27 +430,27 @@ const GADGETS = {
   conveyor: {
     name: 'Conveyor',
     hint: 'carries',
-    w: 2, h: 1,
+    w: 2, h: 0.5,
     rotatable: true,
     flipH: (item) => ((item.rot || 0) % 2 === 0 ? { rot: ((item.rot || 0) + 2) % 4 } : null),
     flipV: (item) => ((item.rot || 0) % 2 === 1 ? { rot: ((item.rot || 0) + 2) % 4 } : null),
     speed: 3,
     makeMesh() {
       const g = new THREE.Group();
-      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(2, 0.3, 0.8), standard(0x3d3d46))).translateY(0.15));
+      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(2, 0.375, 0.8), standard(0x3d3d46))).translateY(0.1875));
       // Rollers along the top spin to show the direction. They sit half sunk
       // in the base and stop just short of its front and back faces.
       for (let i = 0; i < 5; i++) {
-        const r = named(shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.76, 12), standard(0xffb545, { roughness: 0.5 }))), 'roller');
+        const r = named(shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.125, 0.125, 0.76, 12), standard(0xffb545, { roughness: 0.5 }))), 'roller');
         r.rotation.x = Math.PI / 2;
-        r.position.set(-0.8 + i * 0.4, 0.3, 0);
+        r.position.set(-0.75 + i * 0.375, 0.375, 0); // tops on y = 0.5
         g.add(r);
       }
       return g;
     },
     makeBody() {
       const body = new CANNON.Body({ mass: 0, material: MATS.surface });
-      body.addShape(new CANNON.Box(new CANNON.Vec3(1, 0.2, 0.4)), new CANNON.Vec3(0, 0.2, 0));
+      body.addShape(new CANNON.Box(new CANNON.Vec3(1, 0.25, 0.4)), new CANNON.Vec3(0, 0.25, 0));
       return body;
     },
     onStep(item, world) {
@@ -449,7 +464,7 @@ const GADGETS = {
         const rx = b.position.x - cx, ry = b.position.y - cy;
         const along = rx * f.dx + ry * f.dy;
         const up = rx * f.ux + ry * f.uy;
-        if (Math.abs(along) > 1.1 || up < -0.1 || up > 0.9) continue;
+        if (Math.abs(along) > 1.1 || up < 0 || up > 1.1) continue;
         const v = b.velocity.x * f.dx + b.velocity.y * f.dy;
         const push = (this.speed - v) * 8 * b.mass;
         b.applyForce(new CANNON.Vec3(f.dx * push, f.dy * push, 0));
@@ -467,26 +482,27 @@ const GADGETS = {
   launcher: {
     name: 'Launcher',
     hint: 'fires on play',
-    w: 1, h: 1,
+    w: 1, h: 0.5,
     rotatable: true,
     delay: 0.4,
     kick: 14,
+    plateY: 0.3125, // plate spans y 0.25..0.375
     makeMesh() {
       const g = new THREE.Group();
       g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.25, 0.8), standard(0x5a4a6a))).translateY(0.125));
-      const plate = named(shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 0.7), standard(0xff5a5a, { roughness: 0.4 }))), 'plate');
-      plate.position.y = 0.31;
+      const plate = named(shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.125, 0.7), standard(0xff5a5a, { roughness: 0.4 }))), 'plate');
+      plate.position.y = this.plateY;
       g.add(plate);
       // A little arrow on the plate shows which way it fires (local +y, i.e. up).
-      const arrow = shadowed(new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.22, 4), standard(0xffe08a)));
-      arrow.position.y = 0.5;
+      const arrow = shadowed(new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.125, 4), standard(0xffe08a)));
+      arrow.position.y = 0.4375; // tip on y = 0.5
       arrow.rotation.y = Math.PI / 4;
       g.add(arrow);
       return g;
     },
     makeBody() {
       const body = new CANNON.Body({ mass: 0, material: MATS.surface });
-      body.addShape(new CANNON.Box(new CANNON.Vec3(0.5, 0.19, 0.4)), new CANNON.Vec3(0, 0.19, 0));
+      body.addShape(new CANNON.Box(new CANNON.Vec3(0.5, 0.1875, 0.4)), new CANNON.Vec3(0, 0.1875, 0));
       return body;
     },
     onStep(item, world) {
@@ -496,7 +512,8 @@ const GADGETS = {
       item.popT = 0;
       // Fire along local "up" (the plate's normal), turned by the rotation.
       const f = facing(item);
-      const cx = item.x + 0.5, cy = item.y + 0.5;
+      const { w, h } = footprintSize(item.type, item.rot);
+      const cx = item.x + w / 2, cy = item.y + h / 2;
       for (const b of world.bodies) {
         if (b.mass === 0) continue;
         const rx = b.position.x - cx, ry = b.position.y - cy;
@@ -511,8 +528,8 @@ const GADGETS = {
       item.popT += dt;
       const plate = item.mesh.getObjectByName('plate');
       const k = Math.max(0, 1 - item.popT * 4); // quick pop then settle
-      plate.position.y = 0.31 + Math.sin(Math.min(1, item.popT * 4) * Math.PI) * 0.35 * (k + 0.2);
-      if (item.popT > 0.5) { plate.position.y = 0.31; delete item.popT; }
+      plate.position.y = this.plateY + Math.sin(Math.min(1, item.popT * 4) * Math.PI) * 0.35 * (k + 0.2);
+      if (item.popT > 0.5) { plate.position.y = this.plateY; delete item.popT; }
     },
     offset: () => new THREE.Vector3(0.5, 0, 0),
   },
@@ -524,14 +541,14 @@ const GADGETS = {
     idleFrame: true,
     makeMesh() {
       const g = new THREE.Group();
-      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.12, 0.5), standard(0x8a7f6a))).translateY(0.94));
+      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.125, 0.5), standard(0x8a7f6a))).translateY(0.9375));
       const swing = named(new THREE.Group(), 'swing');
-      swing.position.y = 0.88;
-      const cup = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.36, 0.55, 16), standard(0xf5c542, { roughness: 0.3, metalness: 0.4 })));
-      cup.position.y = -0.33;
+      swing.position.y = 0.875;
+      const cup = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.125, 0.375, 0.5, 16), standard(0xf5c542, { roughness: 0.3, metalness: 0.4 })));
+      cup.position.y = -0.25; // cup spans y 0.375..0.875
       swing.add(cup);
       const clapper = shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), standard(0x333333)));
-      clapper.position.y = -0.64;
+      clapper.position.y = -0.535; // bottom on y = 0.25
       swing.add(clapper);
       g.add(swing);
       return g;
@@ -556,39 +573,43 @@ const GADGETS = {
   plank: {
     name: 'Plank',
     hint: 'loose board',
-    w: 3, h: 1,
+    w: 3, h: 0.25,
     rotatable: true,
     dynamic: true,
     makeMesh() {
-      return shadowed(new THREE.Mesh(new THREE.BoxGeometry(3, 0.16, 0.6), standard(0xc98f4a)));
+      return shadowed(new THREE.Mesh(new THREE.BoxGeometry(3, 0.25, 0.6), standard(0xc98f4a)));
     },
     makeBody() {
-      return lockToPlane(new CANNON.Body({ mass: 0.5, shape: new CANNON.Box(new CANNON.Vec3(1.5, 0.08, 0.3)), material: MATS.surface }));
+      return lockToPlane(new CANNON.Body({ mass: 0.5, shape: new CANNON.Box(new CANNON.Vec3(1.5, 0.125, 0.3)), material: MATS.surface }));
     },
-    offset: () => new THREE.Vector3(1.5, 0.08, 0),
+    offset: () => new THREE.Vector3(1.5, 0.125, 0),
   },
 
   bucket: {
     name: 'Bucket',
     hint: 'catches',
-    w: 1, h: 1,
+    // A quarter-cell floor and walls around a 1 x 3/4 inside, which a
+    // marble fits into.
+    w: 1.5, h: 1,
     rotatable: true,
+    // Just the floor and the two walls: the inside stays free to fill.
+    footprint: () => [...rectCells(0, 0, 1.5, 0.25), ...rectCells(0, 0.25, 0.25, 0.75), ...rectCells(1.25, 0.25, 0.25, 0.75)],
     makeMesh() {
       const g = new THREE.Group();
       const mat = standard(0x4f7fa8);
-      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.1, 0.8), mat)).translateY(0.05));
-      const left = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.1, 1, 0.8), mat)); left.position.set(-0.45, 0.5, 0); g.add(left);
-      const right = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.1, 1, 0.8), mat)); right.position.set(0.45, 0.5, 0); g.add(right);
+      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.25, 0.8), mat)).translateY(0.125));
+      const left = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.25, 1, 0.8), mat)); left.position.set(-0.625, 0.5, 0); g.add(left);
+      const right = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.25, 1, 0.8), mat)); right.position.set(0.625, 0.5, 0); g.add(right);
       return g;
     },
     makeBody() {
       const body = new CANNON.Body({ mass: 0, material: MATS.surface });
-      body.addShape(new CANNON.Box(new CANNON.Vec3(0.5, 0.05, 0.4)), new CANNON.Vec3(0, 0.05, 0));
-      body.addShape(new CANNON.Box(new CANNON.Vec3(0.05, 0.5, 0.4)), new CANNON.Vec3(-0.45, 0.5, 0));
-      body.addShape(new CANNON.Box(new CANNON.Vec3(0.05, 0.5, 0.4)), new CANNON.Vec3(0.45, 0.5, 0));
+      body.addShape(new CANNON.Box(new CANNON.Vec3(0.5, 0.125, 0.4)), new CANNON.Vec3(0, 0.125, 0));
+      body.addShape(new CANNON.Box(new CANNON.Vec3(0.125, 0.5, 0.4)), new CANNON.Vec3(-0.625, 0.5, 0));
+      body.addShape(new CANNON.Box(new CANNON.Vec3(0.125, 0.5, 0.4)), new CANNON.Vec3(0.625, 0.5, 0));
       return body;
     },
-    offset: () => new THREE.Vector3(0.5, 0, 0),
+    offset: () => new THREE.Vector3(0.75, 0, 0),
   },
 };
 
@@ -624,13 +645,33 @@ function itemTransform(item) {
   return { position, quaternion };
 }
 
-function footprintCells(type, x, y, rot = 0) {
-  const def = GADGETS[type];
-  if (def.footprint) return def.footprint(rot).map(([i, j]) => [x + i, y + j]);
-  const { w, h } = footprintSize(type, rot);
+// Subgrid cells covering a w x h box at (x, y), all in units (multiples of
+// 1/4). Cells are [i, j] subgrid indices: cell i spans i/SUB..(i+1)/SUB.
+function rectCells(x, y, w, h) {
   const cells = [];
-  for (let i = 0; i < w; i++) {
-    for (let j = 0; j < h; j++) cells.push([x + i, y + j]);
+  const i0 = Math.round(x * SUB), j0 = Math.round(y * SUB);
+  const nw = Math.round(w * SUB), nh = Math.round(h * SUB);
+  for (let i = 0; i < nw; i++) {
+    for (let j = 0; j < nh; j++) cells.push([i0 + i, j0 + j]);
   }
   return cells;
+}
+
+// The subgrid cells an item at (x, y) turned `rot` takes up on the board.
+// A gadget's own `footprint(rot)` lists its cells relative to its anchor,
+// unturned; otherwise it fills its whole box.
+function footprintCells(type, x, y, rot = 0) {
+  const def = GADGETS[type];
+  const i0 = Math.round(x * SUB), j0 = Math.round(y * SUB);
+  if (def.footprint) {
+    const r = def.swing ? 0 : rot;
+    const W = Math.round(def.w * SUB), H = Math.round(def.h * SUB);
+    // Turn each cell about the box: (i, j) -> after r quarter turns CCW.
+    return def.footprint(rot).map(([i, j]) => {
+      for (let k = 0; k < r; k++) [i, j] = [(k % 2 ? W : H) - 1 - j, i];
+      return [i0 + i, j0 + j];
+    });
+  }
+  const { w, h } = footprintSize(type, rot);
+  return rectCells(x, y, w, h);
 }
