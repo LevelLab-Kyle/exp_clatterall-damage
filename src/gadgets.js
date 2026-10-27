@@ -107,6 +107,8 @@ const MATS = {
 };
 
 // Direction a gadget "faces" after rot quarter turns: local +x turned.
+const ROLLER_SPIN = 6; // conveyor roller spin, radians per second (see conveyor.onFrame)
+
 function facing(item) {
   const a = (item.rot || 0) * Math.PI / 2;
   return { dx: Math.cos(a), dy: Math.sin(a), ux: -Math.sin(a), uy: Math.cos(a) };
@@ -421,9 +423,10 @@ const GADGETS = {
     makeMesh() {
       const g = new THREE.Group();
       g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(2, 0.3, 0.8), standard(0x3d3d46))).translateY(0.15));
-      // Rollers along the top spin to show the direction.
+      // Rollers along the top spin to show the direction. They sit half sunk
+      // in the base and stop just short of its front and back faces.
       for (let i = 0; i < 5; i++) {
-        const r = named(shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.84, 12), standard(0xffb545, { roughness: 0.5 }))), 'roller');
+        const r = named(shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.76, 12), standard(0xffb545, { roughness: 0.5 }))), 'roller');
         r.rotation.x = Math.PI / 2;
         r.position.set(-0.8 + i * 0.4, 0.3, 0);
         g.add(r);
@@ -453,7 +456,10 @@ const GADGETS = {
       }
     },
     onFrame(item, dt) {
-      item.mesh.traverse((o) => { if (o.name === 'roller') o.rotation.y -= dt * this.speed / 0.11; });
+      // A true rolling speed (speed / radius, ~27 rad/s) moves the roller's
+      // edge lines almost one 30° segment per frame, which the eye reads as
+      // spinning backwards. A slower spin reads correctly.
+      item.mesh.traverse((o) => { if (o.name === 'roller') o.rotation.y -= dt * ROLLER_SPIN; });
     },
     offset: () => new THREE.Vector3(1, 0, 0),
   },
