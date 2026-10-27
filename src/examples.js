@@ -1,4 +1,4 @@
-// Ready-made contraptions. Each entry is [type, x, y, rot]; x and y are on
+// Ready-made contraptions. Each entry is [type, x, y, rot, flip]; x and y are on
 // the quarter-cell subgrid.
 // All of them reach the star when played.
 

@@ -14,8 +14,11 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 | More gadgets | Cards cut off at the tray edge fade out; the ‹ / › arrows (or a scroll/swipe over the tray) slide the next set into view |
 | Move a gadget | Drag it. The selected gadget gets a blue outline, same as the platform builder |
 | Delete | Right-click it, or select + `Delete` |
-| Rotate | Select a gadget and use the ↺ / ↻ buttons next to it, or `R` (counter-clockwise) / `Shift+R` (clockwise). Turns 90° at a time; works mid-drag too. Ramps get all four orientations; the fan blows in the direction it faces. |
-| Flip | ⇔ / ⇕ buttons next to the selected gadget, or `F` (left-right) / `Shift+F` (up-down). Only shown where it changes something: ramps, the fan (reverses its direction), the pendulum (mirrors the swing), the bouncer (upside-down). |
+| Selected-gadget menu | Floats above the selected gadget: **Rotate** (↺ ↻ ⇔ ⇕), **Size** and **Move** each slide out a column of buttons (one open at a time), plus 🗑. Every gadget shows every button; ones that don't apply are greyed out |
+| Rotate | ↺ / ↻ in the Rotate group, or `R` (counter-clockwise) / `Shift+R` (clockwise). Turns 90° at a time; works mid-drag too. Ramps get all four orientations; the fan blows in the direction it faces. |
+| Flip | ⇔ / ⇕ in the Rotate group, or `F` (left-right) / `Shift+F` (up-down). Only shown where it changes something: ramps, the fan (reverses its direction), the pendulum (mirrors the swing), the bouncer (upside-down). |
+| Grow / Shrink | The Size group on blocks and ramps: narrower / wider and shorter / taller, ¼ at a time (from ¼ up to 4 each way). It keeps its bottom-left corner, sliding left or down a quarter if something is in the way |
+| Nudge | The Move group, or the arrow keys: moves the selected gadget ¼ cell |
 | Pan | Drag empty space or scroll (mouse); two fingers (touch). The view settles onto whole cells and never goes below the ground |
 | Zoom | `Ctrl`/`Cmd` + scroll, or pinch (trackpad or touch screen) |
 | Home | Home button or `H`: fit the whole contraption on screen. Also happens on load, when loading an example and when the window resizes |
@@ -36,8 +39,8 @@ The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, 
 | Marble | ¾×¾ | Rolls and falls |
 | Bowling ball | 2×2 | Heavy. Knocks big things over |
 | Domino | ¼×1½ | Tips over and takes the next one with it |
-| Ramp / Long ramp | 1×1 / 2×1 | Static slope. Rotate for all four orientations |
-| Block | 1×1 | Solid cube to build on |
+| Ramp / Long ramp | 1×1 (¼ to 4 each way) / 2×1 | Static slope. Rotate for all four orientations; grow / shrink the ramp's width and height to set its steepness |
+| Block | 1×1 (¼ to 4) | Solid block to build on. Grow / shrink it in ¼ steps |
 | Seesaw | 3×¾ | Plank on a hinge. Drop something on one end to fling the other |
 | Bouncer | 1×½ | Springy pad; marbles bounce off it |
 | Fan | 1×1 | Pushes anything up to 3 cells in the direction it faces. Rotate to aim it |

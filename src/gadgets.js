@@ -165,17 +165,21 @@ const GADGETS = {
 
   ramp: {
     name: 'Ramp',
-    hint: 'rotates',
+    hint: 'grows',
     w: 1, h: 1,
     rotatable: true,
-    // A 1x1 wedge's mirror image is one of its own rotations.
-    flipH: (item) => ({ rot: (5 - (item.rot || 0)) % 4 }),
-    flipV: (item) => ({ rot: (7 - (item.rot || 0)) % 4 }),
-    makeMesh() {
-      return shadowed(new THREE.Mesh(wedgeGeometry(1, 1, 1), standard(COLORS.ramp)));
+    resizable: { min: 0.25, max: 4 },
+    // Once it's stretched, a wedge's mirror image isn't one of its own
+    // rotations any more, so flips carry a mirror flag (like the long ramp).
+    flipH: (item) => ({ flip: !item.flip }),
+    flipV: (item) => ({ flip: !item.flip, rot: ((item.rot || 0) + 2) % 4 }),
+    makeMesh(item) {
+      const s = item?.size || NORMAL_SIZE;
+      return shadowed(new THREE.Mesh(wedgeGeometry(s.w, s.h, 1, !!item?.flip), standard(COLORS.ramp)));
     },
-    makeBody() {
-      return new CANNON.Body({ mass: 0, shape: wedgeShape(1, 1, 1), material: MATS.surface });
+    makeBody(item) {
+      const s = item?.size || NORMAL_SIZE;
+      return new CANNON.Body({ mass: 0, shape: wedgeShape(s.w, s.h, 1, !!item?.flip), material: MATS.surface });
     },
     offset: () => new THREE.Vector3(0.5, 0.5, 0),
   },
@@ -199,13 +203,17 @@ const GADGETS = {
 
   block: {
     name: 'Block',
-    hint: 'solid',
+    hint: 'grows',
     w: 1, h: 1,
-    makeMesh() {
-      return shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), standard(COLORS.block)));
+    // Grow / shrink steps the block's width or height by a quarter cell.
+    resizable: { min: 0.25, max: 4 },
+    makeMesh(item) {
+      const s = item?.size || NORMAL_SIZE;
+      return shadowed(new THREE.Mesh(new THREE.BoxGeometry(s.w, s.h, 1), standard(COLORS.block)));
     },
-    makeBody() {
-      return new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5)), material: MATS.surface });
+    makeBody(item) {
+      const s = item?.size || NORMAL_SIZE;
+      return new CANNON.Body({ mass: 0, shape: new CANNON.Box(new CANNON.Vec3(s.w / 2, s.h / 2, 0.5)), material: MATS.surface });
     },
     offset: () => new THREE.Vector3(0.5, 0.5, 0),
   },
@@ -623,11 +631,18 @@ GADGETS.pendulum.makeMesh = function () {
 
 const GADGET_ORDER = ['marble', 'bowling', 'domino', 'plank', 'ramp', 'longramp', 'block', 'bucket', 'seesaw', 'bouncer', 'conveyor', 'launcher', 'fan', 'pendulum', 'bell', 'star'];
 
+// A resizable gadget's `size` scales its normal width and height separately
+// ({ w, h }); null means its normal size.
+const NORMAL_SIZE = { w: 1, h: 1 };
+const sizeOf = (type, size) => (GADGETS[type].resizable && size) || NORMAL_SIZE;
+
 // Footprint size after `rot` quarter turns (odd turns swap width and height).
-function footprintSize(type, rot = 0) {
+function footprintSize(type, rot = 0, size = null) {
   const def = GADGETS[type];
-  if (def.swing) return { w: def.w, h: def.h }; // swinging gadgets never turn
-  return rot % 2 ? { w: def.h, h: def.w } : { w: def.w, h: def.h };
+  const k = sizeOf(type, size);
+  const w = def.w * k.w, h = def.h * k.h;
+  if (def.swing) return { w, h }; // swinging gadgets never turn
+  return rot % 2 ? { w: h, h: w } : { w, h };
 }
 
 // World-space transform for an item at cell (x, y), turned `rot` quarter
@@ -637,10 +652,12 @@ function itemTransform(item) {
   const rot = def.swing ? 0 : (item.rot || 0);
   const angle = rot * Math.PI / 2;
   const quaternion = new THREE.Quaternion().setFromAxisAngle(Z_AXIS_THREE, angle);
-  const turned = footprintSize(item.type, rot);
+  const k = sizeOf(item.type, item.size);
+  const turned = footprintSize(item.type, rot, item.size);
   // The mesh origin sits at `offset` inside the unturned footprint; spin that
   // about the footprint center, then drop it into the turned footprint.
-  const local = def.offset().sub(new THREE.Vector3(def.w / 2, def.h / 2, 0)).applyQuaternion(quaternion);
+  const local = def.offset().multiply(new THREE.Vector3(k.w, k.h, 1))
+    .sub(new THREE.Vector3(def.w * k.w / 2, def.h * k.h / 2, 0)).applyQuaternion(quaternion);
   const position = local.add(new THREE.Vector3(item.x + turned.w / 2, item.y + turned.h / 2, 0));
   return { position, quaternion };
 }
@@ -660,7 +677,7 @@ function rectCells(x, y, w, h) {
 // The subgrid cells an item at (x, y) turned `rot` takes up on the board.
 // A gadget's own `footprint(rot)` lists its cells relative to its anchor,
 // unturned; otherwise it fills its whole box.
-function footprintCells(type, x, y, rot = 0) {
+function footprintCells(type, x, y, rot = 0, size = null) {
   const def = GADGETS[type];
   const i0 = Math.round(x * SUB), j0 = Math.round(y * SUB);
   if (def.footprint) {
@@ -672,6 +689,6 @@ function footprintCells(type, x, y, rot = 0) {
       return [i0 + i, j0 + j];
     });
   }
-  const { w, h } = footprintSize(type, rot);
+  const { w, h } = footprintSize(type, rot, size);
   return rectCells(x, y, w, h);
 }

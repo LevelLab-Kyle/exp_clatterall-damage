@@ -240,6 +240,41 @@ select:focus { outline: none; border-color: var(--color-accent); }
   white-space: nowrap;
 }
 
+/* Grouped tools: each group shows one head button; tapping it slides its
+   actions out as a column (one group open at a time). Actions that don't
+   apply are greyed out, never hidden. Near the top of the
+   screen the columns slide downward instead (#item-tools.below). */
+.tool-group { position: relative; display: flex; }
+.tool-head.on { color: var(--color-accent); }
+.tool-pop {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + var(--space-2));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--color-surface);
+  border: var(--border-width) var(--border-style) var(--color-accent);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-drop);
+  transform-origin: 50% 100%;
+  transform: translateX(-50%) translateY(20px) scaleY(0.2);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform 0.18s ease-out, opacity 0.18s ease-out, visibility 0s 0.18s;
+}
+.tool-group.open .tool-pop {
+  transform: translateX(-50%);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: transform 0.18s ease-out, opacity 0.18s ease-out;
+}
+#item-tools.below .tool-pop { bottom: auto; top: calc(100% + var(--space-2)); transform-origin: 50% 0; }
+#item-tools.below .tool-group:not(.open) .tool-pop { transform: translateX(-50%) translateY(-20px) scaleY(0.2); }
+
 /* Win notice */
 #toast {
   position: absolute;

@@ -140,8 +140,8 @@ let playing = false;
 
 const key = (x, y) => `${x},${y}`;
 
-function canPlace(type, x, y, rot = 0, ignoreId = null) {
-  return footprintCells(type, x, y, rot).every(([cx, cy]) => {
+function canPlace(type, x, y, rot = 0, ignoreId = null, size = null) {
+  return footprintCells(type, x, y, rot, size).every(([cx, cy]) => {
     if (cy < 0) return false;
     const id = occupied.get(key(cx, cy));
     return id == null || id === ignoreId;
@@ -152,7 +152,7 @@ function canPlace(type, x, y, rot = 0, ignoreId = null) {
 // un-snapped position, so it slides toward whichever side it was closer to.
 // Spots are on the subgrid, up to 8 cells away.
 const snapSub = (v) => Math.round(v * SUB) / SUB;
-function nearestFree(type, ax, ay, rot = 0, ignoreId = null) {
+function nearestFree(type, ax, ay, rot = 0, ignoreId = null, size = null) {
   const x0 = snapSub(ax), y0 = Math.max(0, snapSub(ay));
   const spots = [];
   for (let r = 0; r <= 8 * SUB; r++) {
@@ -165,7 +165,7 @@ function nearestFree(type, ax, ay, rot = 0, ignoreId = null) {
     }
   }
   spots.sort((a, b) => a.d - b.d);
-  return spots.find((s) => canPlace(type, s.x, s.y, rot, ignoreId)) || null;
+  return spots.find((s) => canPlace(type, s.x, s.y, rot, ignoreId, size)) || null;
 }
 
 function applyTransform(item) {
@@ -197,11 +197,15 @@ function restoreRest(obj) {
   obj.traverse((o) => { if (o.userData.rest) { o.position.copy(o.userData.rest.p); o.quaternion.copy(o.userData.rest.q); } });
 }
 
-function addItem(type, x, y, rot = 0, flip = false) {
-  const item = { id: nextId++, type, x, y, rot, flip, parts: null };
+const cellsOf = (item) => footprintCells(item.type, item.x, item.y, item.rot, item.size);
+
+const sameSize = (a, b) => (a?.w ?? 1) === (b?.w ?? 1) && (a?.h ?? 1) === (b?.h ?? 1);
+
+function addItem(type, x, y, rot = 0, flip = false, size = null) {
+  const item = { id: nextId++, type, x, y, rot, flip, size, parts: null };
   item.mesh = GADGETS[type].makeMesh(item);
   items.set(item.id, item);
-  footprintCells(type, x, y, rot).forEach(([cx, cy]) => occupied.set(key(cx, cy), item.id));
+  cellsOf(item).forEach(([cx, cy]) => occupied.set(key(cx, cy), item.id));
   applyTransform(item);
   storeRest(item.mesh);
   setHighlight(item, false); // records each mesh's base glow
@@ -211,14 +215,15 @@ function addItem(type, x, y, rot = 0, flip = false) {
   return item;
 }
 
-function moveItem(item, x, y, rot = item.rot, flip = item.flip) {
-  footprintCells(item.type, item.x, item.y, item.rot).forEach(([cx, cy]) => occupied.delete(key(cx, cy)));
+function moveItem(item, x, y, rot = item.rot, flip = item.flip, size = item.size) {
+  cellsOf(item).forEach(([cx, cy]) => occupied.delete(key(cx, cy)));
   item.x = x;
   item.y = y;
   item.rot = rot;
-  if (flip !== item.flip) {
-    // A mirrored shape needs its own geometry: rebuild the mesh in place.
+  if (flip !== item.flip || !sameSize(size, item.size)) {
+    // A mirrored or resized shape needs its own geometry: rebuild the mesh in place.
     item.flip = flip;
+    item.size = size;
     scene.remove(item.mesh);
     tweens.delete(item.mesh);
     item.mesh = GADGETS[item.type].makeMesh(item);
@@ -228,13 +233,13 @@ function moveItem(item, x, y, rot = item.rot, flip = item.flip) {
     setHighlight(item, false);
     if (selected === item) outlinePass.selectedObjects = [item.mesh];
   }
-  footprintCells(item.type, x, y, rot).forEach(([cx, cy]) => occupied.set(key(cx, cy), item.id));
+  cellsOf(item).forEach(([cx, cy]) => occupied.set(key(cx, cy), item.id));
   applyTransform(item);
   scheduleSave();
 }
 
 function removeItem(item) {
-  footprintCells(item.type, item.x, item.y, item.rot).forEach(([cx, cy]) => occupied.delete(key(cx, cy)));
+  cellsOf(item).forEach(([cx, cy]) => occupied.delete(key(cx, cy)));
   items.delete(item.id);
   tweens.delete(item.mesh);
   scene.remove(item.mesh);
@@ -243,8 +248,10 @@ function removeItem(item) {
 }
 
 function select(item) {
+  if (item !== selected) openGroup = null;
   selected = item;
   outlinePass.selectedObjects = selected ? [selected.mesh] : [];
+  if (!item) itemTools.hidden = true; // right away, not on the next frame
 }
 
 function clearBoard() {
@@ -259,7 +266,7 @@ const history = { undo: [], redo: [] };
 const HISTORY_LIMIT = 100;
 
 function snapshot() {
-  return [...items.values()].map((i) => ({ type: i.type, x: i.x, y: i.y, rot: i.rot, flip: !!i.flip }));
+  return [...items.values()].map((i) => ({ type: i.type, x: i.x, y: i.y, rot: i.rot, flip: !!i.flip, size: i.size ? { ...i.size } : null }));
 }
 
 // Call before changing the board.
@@ -273,7 +280,7 @@ function recordEdit() {
 function restore(snap) {
   finishTweens();
   clearBoard();
-  for (const s of snap) addItem(s.type, s.x, s.y, s.rot, s.flip);
+  for (const s of snap) addItem(s.type, s.x, s.y, s.rot, s.flip, s.size || null);
 }
 
 function undo() {
@@ -327,7 +334,7 @@ function loadProgress() {
   if (!data || !Array.isArray(data.items)) return false;
   clearBoard();
   for (const s of data.items) {
-    if (GADGETS[s.type] && canPlace(s.type, s.x, s.y, s.rot || 0)) addItem(s.type, s.x, s.y, s.rot || 0, !!s.flip);
+    if (GADGETS[s.type] && canPlace(s.type, s.x, s.y, s.rot || 0, null, s.size || null)) addItem(s.type, s.x, s.y, s.rot || 0, !!s.flip, s.size || null);
   }
   if (data.view) { view.cx = data.view.cx; view.cy = data.view.cy; view.zoom = data.view.zoom; }
   if (data.mode === '3d') setMode('3d', true);
@@ -561,18 +568,20 @@ function settle(item, fromPosition, fromQuaternion = null) {
   tweens.set(item.mesh, tw);
 }
 
+const ONE = new THREE.Vector3(1, 1, 1);
 function updateTweens(dt) {
   for (const [mesh, tw] of tweens) {
     tw.t = Math.min(1, tw.t + dt / SNAP_SECONDS);
     const k = easeOut(tw.t);
     mesh.position.lerpVectors(tw.from, tw.to, k);
     if (tw.fromQ) mesh.quaternion.slerpQuaternions(tw.fromQ, tw.toQ, k);
+    if (tw.fromS) mesh.scale.lerpVectors(tw.fromS, ONE, k);
     if (tw.t >= 1) tweens.delete(mesh);
   }
 }
 
 function finishTweens() {
-  for (const [mesh, tw] of tweens) { mesh.position.copy(tw.to); mesh.quaternion.copy(tw.toQ); }
+  for (const [mesh, tw] of tweens) { mesh.position.copy(tw.to); mesh.quaternion.copy(tw.toQ); mesh.scale.copy(ONE); }
   tweens.clear();
   for (const anim of mirrorAnims) endMirrorAnim(anim);
   mirrorAnims.length = 0;
@@ -582,6 +591,7 @@ function finishTweens() {
 // its center along the flipped axis and comes out reversed, while the real
 // (already flipped) piece stays hidden until it's done.
 const mirrorAnims = []; // { item, stand, axis, t }
+let openGroup = null; // which tool group's column is slid out (see updateItemTools)
 const MIRROR_SECONDS = 0.22;
 
 function startMirrorAnim(item, axis, before, center) {
@@ -666,7 +676,8 @@ function updateDrag(ev) {
   }
   const type = drag.kind === 'new' ? drag.type : drag.item.type;
   const rot = drag.kind === 'new' ? drag.rot : drag.item.rot;
-  const cell = dragTarget(drag.kind === 'new' ? liftForTouch(ev) : ev, footprintSize(type, rot), drag.grab);
+  const size = drag.kind === 'new' ? null : drag.item.size;
+  const cell = dragTarget(drag.kind === 'new' ? liftForTouch(ev) : ev, footprintSize(type, rot, size), drag.grab);
   drag.cell = cell;
   if (drag.kind === 'new') {
     drag.ghost.visible = !!cell;
@@ -701,7 +712,7 @@ function endDrag(ev) {
     }
   } else if (d.kind === 'move') {
     const from = d.item.mesh.position.clone();
-    const spot = d.moved && d.cell && nearestFree(d.item.type, d.cell.ax, d.cell.ay, d.item.rot, d.item.id);
+    const spot = d.moved && d.cell && nearestFree(d.item.type, d.cell.ax, d.cell.ay, d.item.rot, d.item.id, d.item.size);
     if (spot) {
       if (spot.x !== d.item.x || spot.y !== d.item.y) recordEdit();
       moveItem(d.item, spot.x, spot.y);
@@ -773,6 +784,10 @@ function pinchState() {
 // Returns true when this finger started a pinch.
 function trackTouchDown(ev) {
   if (ev.pointerType !== 'touch') return false;
+  // The first finger of a new gesture starts fresh: if the browser ever
+  // dropped a finger's lift, that stale finger would turn every later tap
+  // into a "pinch" and taps would stop selecting or deselecting.
+  if (ev.isPrimary) { touches.clear(); pinch = null; }
   touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
   if (touches.size < 2) return false;
   cancelDrag(); // the first finger's pan/move becomes a pinch
@@ -836,6 +851,8 @@ canvas.addEventListener('wheel', (ev) => {
 window.addEventListener('keydown', (ev) => {
   if (ev.key === 'r' || ev.key === 'R') rotateSelected(ev.shiftKey ? -1 : 1);
   if (ev.key === 'f' || ev.key === 'F') flipSelected(ev.shiftKey ? 'v' : 'h');
+  const arrow = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[ev.key];
+  if (arrow && selected) { ev.preventDefault(); nudgeSelected(...NUDGE[arrow]); }
   if (ev.key === 'h' || ev.key === 'H') homeView();
   if ((ev.key === 'Delete' || ev.key === 'Backspace') && selected && !playing) { recordEdit(); removeItem(selected); }
   if ((ev.metaKey || ev.ctrlKey) && (ev.key === 'z' || ev.key === 'Z')) {
@@ -866,14 +883,14 @@ function nextRotation(item, dir) {
 function turnedAnchor(item, rot) {
   const spots = [];
   if (!GADGETS[item.type].swing) {
-    const was = footprintSize(item.type, item.rot), now = footprintSize(item.type, rot);
+    const was = footprintSize(item.type, item.rot, item.size), now = footprintSize(item.type, rot, item.size);
     spots.push({
       x: snapSub(item.x + (was.w - now.w) / 2),
       y: Math.max(0, snapSub(item.y + (was.h - now.h) / 2)),
     });
   }
   spots.push({ x: item.x, y: item.y });
-  return spots.find((at) => canPlace(item.type, at.x, at.y, rot, item.id)) || null;
+  return spots.find((at) => canPlace(item.type, at.x, at.y, rot, item.id, item.size)) || null;
 }
 
 // What flipping `item` across the vertical ('h') or horizontal ('v') axis
@@ -887,7 +904,60 @@ function nextFlip(item, axis) {
   if (!change) return null;
   const next = { rot: change.rot ?? (item.rot || 0), flip: change.flip ?? !!item.flip };
   if (next.rot === (item.rot || 0) && next.flip === !!item.flip) return null;
-  return canPlace(item.type, item.x, item.y, next.rot, item.id) ? next : null;
+  return canPlace(item.type, item.x, item.y, next.rot, item.id, item.size) ? next : null;
+}
+
+// Where a resizable `item` ends up one quarter step wider or narrower
+// (axis 'w') or taller or shorter (axis 'h'), as { size, x, y }, or null at
+// the size limit or with no room. It keeps its bottom-left corner; growing
+// into something on the right (or above) slides it left (or down) a
+// quarter instead, if that's free.
+function nextSize(item, axis, dir) {
+  const r = GADGETS[item.type].resizable;
+  if (!r) return null;
+  const was = item.size || NORMAL_SIZE;
+  // `size` is in the piece's own unturned frame; a quarter turn swaps which
+  // of its sides runs across the screen.
+  const side = (item.rot || 0) % 2 ? (axis === 'w' ? 'h' : 'w') : axis;
+  const v = Math.round((was[side] + dir / SUB) * SUB) / SUB;
+  if (v < r.min || v > r.max) return null;
+  const size = { ...was, [side]: v };
+  const back = dir > 0 ? 1 / SUB : 0;
+  const spots = axis === 'w' ? [[0, 0], [-back, 0]] : [[0, 0], [0, -back]];
+  for (const [dx, dy] of spots) {
+    const x = item.x + dx, y = item.y + dy;
+    if (y >= 0 && canPlace(item.type, x, y, item.rot, item.id, size)) return { size, x, y };
+  }
+  return null;
+}
+
+// Nudge: move the selected gadget a quarter cell (dx, dy in quarters).
+function canNudge(item, dx, dy) {
+  const x = item.x + dx / SUB, y = item.y + dy / SUB;
+  return y >= 0 && canPlace(item.type, x, y, item.rot, item.id, item.size);
+}
+function nudgeSelected(dx, dy) {
+  if (!selected || playing || !canNudge(selected, dx, dy)) return;
+  recordEdit();
+  const from = selected.mesh.position.clone();
+  moveItem(selected, selected.x + dx / SUB, selected.y + dy / SUB);
+  settle(selected, from);
+}
+
+function resizeSelected(axis, dir) {
+  if (!selected || playing) return;
+  const next = nextSize(selected, axis, dir);
+  if (!next) return;
+  recordEdit();
+  const from = selected.mesh.position.clone();
+  const was = selected.size || NORMAL_SIZE;
+  moveItem(selected, next.x, next.y, selected.rot, selected.flip, next.size); // rebuilds the mesh
+  // Grow or shrink smoothly from the old size and spot (the mesh's scale is
+  // in its own unturned frame, like `size`).
+  const fromS = new THREE.Vector3(was.w / next.size.w, was.h / next.size.h, 1);
+  selected.mesh.scale.copy(fromS);
+  settle(selected, from);
+  tweens.get(selected.mesh).fromS = fromS;
 }
 
 function flipSelected(axis) {
@@ -898,7 +968,7 @@ function flipSelected(axis) {
   // Every flip is shown as a mirror about the piece's footprint center: a
   // copy of the piece as it was shrinks through that center along the
   // flipped axis and expands out reversed.
-  const { w, h } = footprintSize(selected.type, selected.rot);
+  const { w, h } = footprintSize(selected.type, selected.rot, selected.size);
   const center = new THREE.Vector3(selected.x + w / 2, selected.y + h / 2, 0);
   const before = { mesh: selected.mesh.clone(), position: selected.mesh.position.clone(), quaternion: selected.mesh.quaternion.clone() };
   moveItem(selected, selected.x, selected.y, next.rot, next.flip);
@@ -957,6 +1027,16 @@ const toolRotateCcw = document.getElementById('tool-rotate-ccw');
 const toolRotateCw = document.getElementById('tool-rotate-cw');
 const toolFlipH = document.getElementById('tool-flip-h');
 const toolFlipV = document.getElementById('tool-flip-v');
+const toolGroups = [...itemTools.querySelectorAll('.tool-group')];
+const toolNudge = {
+  left: document.getElementById('tool-nudge-left'), right: document.getElementById('tool-nudge-right'),
+  up: document.getElementById('tool-nudge-up'), down: document.getElementById('tool-nudge-down'),
+};
+const NUDGE = { left: [-1, 0], right: [1, 0], up: [0, 1], down: [0, -1] };
+const toolWider = document.getElementById('tool-wider');
+const toolNarrower = document.getElementById('tool-narrower');
+const toolTaller = document.getElementById('tool-taller');
+const toolShorter = document.getElementById('tool-shorter');
 const toolDelete = document.getElementById('tool-delete');
 const trayList = document.getElementById('gadget-list');
 
@@ -972,6 +1052,14 @@ toolRotateCcw.onclick = () => rotateSelected(1);
 toolRotateCw.onclick = () => rotateSelected(-1);
 toolFlipH.onclick = () => flipSelected('h');
 toolFlipV.onclick = () => flipSelected('v');
+for (const g of toolGroups) {
+  g.querySelector('.tool-head').onclick = () => { openGroup = openGroup === g.dataset.group ? null : g.dataset.group; };
+}
+for (const [dir, b] of Object.entries(toolNudge)) b.onclick = () => nudgeSelected(...NUDGE[dir]);
+toolWider.onclick = () => resizeSelected('w', 1);
+toolNarrower.onclick = () => resizeSelected('w', -1);
+toolTaller.onclick = () => resizeSelected('h', 1);
+toolShorter.onclick = () => resizeSelected('h', -1);
 toolDelete.onclick = () => { if (selected && !playing) { recordEdit(); removeItem(selected); } };
 // Clicks on the floating tools must not reach the board underneath.
 itemTools.addEventListener('pointerdown', (ev) => ev.stopPropagation());
@@ -997,11 +1085,28 @@ function updateItemTools() {
   const x = THREE.MathUtils.clamp(sumX / 8, 50, w - 50);
   const y = THREE.MathUtils.clamp(minY - 10, 56, h);
   itemTools.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
-  // Actions that don't apply are hidden, not greyed out.
-  toolRotateCcw.hidden = nextRotation(selected, 1) === null;
-  toolRotateCw.hidden = nextRotation(selected, -1) === null;
-  toolFlipH.hidden = nextFlip(selected, 'h') === null;
-  toolFlipV.hidden = nextFlip(selected, 'v') === null;
+  // Every action shows on every gadget; ones that don't apply are greyed out.
+  toolRotateCcw.disabled = nextRotation(selected, 1) === null;
+  toolRotateCw.disabled = nextRotation(selected, -1) === null;
+  toolFlipH.disabled = nextFlip(selected, 'h') === null;
+  toolFlipV.disabled = nextFlip(selected, 'v') === null;
+  toolWider.disabled = nextSize(selected, 'w', 1) === null;
+  toolNarrower.disabled = nextSize(selected, 'w', -1) === null;
+  toolTaller.disabled = nextSize(selected, 'h', 1) === null;
+  toolShorter.disabled = nextSize(selected, 'h', -1) === null;
+  for (const [dir, b] of Object.entries(toolNudge)) b.disabled = !canNudge(selected, ...NUDGE[dir]);
+  // A group's head is greyed out (and its column closed) when none of its
+  // actions apply.
+  for (const g of toolGroups) {
+    const any = [...g.querySelectorAll('.tool-pop > button')].some((b) => !b.disabled);
+    const name = g.dataset.group;
+    if (openGroup === name && !any) openGroup = null;
+    const head = g.querySelector('.tool-head');
+    head.disabled = !any;
+    g.classList.toggle('open', openGroup === name);
+    head.classList.toggle('on', openGroup === name);
+  }
+  itemTools.classList.toggle('below', y < 200); // no room above near the top
 }
 btnView.onclick = () => setMode(mode === '2d' ? '3d' : '2d');
 btnHome.onclick = homeView;
@@ -1186,7 +1291,7 @@ function gridTarget(cx, cy, zoom) {
 function homeView() {
   let minX = Infinity, maxX = -Infinity, maxY = 0;
   for (const item of items.values()) {
-    for (const [cx, cy] of footprintCells(item.type, item.x, item.y, item.rot)) {
+    for (const [cx, cy] of cellsOf(item)) {
       minX = Math.min(minX, cx / SUB); maxX = Math.max(maxX, (cx + 1) / SUB); maxY = Math.max(maxY, (cy + 1) / SUB);
     }
   }
@@ -1282,7 +1387,7 @@ function loadExample(name) {
   if (playing) stopPlay();
   if (items.size) recordEdit();
   clearBoard();
-  for (const [type, x, y, rot] of ex.items) addItem(type, x, y, rot || 0);
+  for (const [type, x, y, rot, flip] of ex.items) addItem(type, x, y, rot || 0, !!flip);
   // Center the view on the contraption.
   homeView();
   examplesSelect.value = name;
