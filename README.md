@@ -24,7 +24,6 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 | Home | Home button or `H`: fit the whole contraption on screen. Also happens on load, when loading an example and when the window resizes |
 | Play / Reset | Buttons, or `Space` |
 | Undo / Redo | Buttons, or `Cmd/Ctrl+Z` / `Shift+Cmd/Ctrl+Z` (also `Ctrl+Y`). Covers placing, moving, rotating, deleting and Clear |
-| 3D view | "3D view" button. Fixed tilted camera; pan, zoom and editing work the same as the flat view |
 
 Hit the ⭐ Star with anything to win.
 
@@ -55,7 +54,7 @@ The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, 
 ## How it's built
 
 - **Plain HTML/CSS/JS.** Three.js and cannon-es are bundled once into `vendor/libs.js` (see `vendor/README.md` to upgrade them). Game code is classic `<script>` files, no modules, no bundler.
-- The world is a true 3D voxel grid (`x`, `y`, one cell deep in `z`). The "2D" view is just an orthographic camera looking at it side-on; the 3D view is a perspective camera on the same scene. Tilt-shift will be a post-process on the 3D camera.
+- The world is a true 3D voxel grid (`x`, `y`, one cell deep in `z`). The view is a side-on perspective camera (30° lens), so pieces show a little depth.
 - The board is infinite. Ground is at `y = 0`; nothing can go below it.
 - Physics runs only while playing. Bodies are created from placed items on Play and thrown away on Reset. Dynamic bodies are locked to the X/Y plane.
 
