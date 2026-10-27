@@ -739,9 +739,13 @@ function cancelDrag() {
   else if (d.kind === 'pan') snapView();
 }
 
-// Two-finger pinch on the board zooms (and pans with the midpoint).
+// Two fingers on the board pan, and zoom only on a clear pinch. A gesture
+// locks into one or the other early on: once it's a pan, finger spread is
+// ignored, so a two-finger scroll never zooms by accident.
+const PINCH_SPREAD_PX = 24; // fingers must spread/close this far to zoom...
+const PAN_LOCK_PX = 10;     // ...before the pair moves this far together
 const touches = new Map(); // pointerId -> { x, y }
-let pinch = null; // { dist, zoom, mid, cx, cy }
+let pinch = null; // { mode: null|'pan'|'zoom', dist, zoom, mid, cx, cy }
 function pinchState() {
   const [a, b] = [...touches.values()];
   return { dist: Math.hypot(a.x - b.x, a.y - b.y), mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
@@ -755,7 +759,7 @@ function trackTouchDown(ev) {
   if (touches.size < 2) return false;
   cancelDrag(); // the first finger's pan/move becomes a pinch
   const s = pinchState();
-  pinch = { dist: s.dist, zoom: view.zoom, mid: s.mid, cx: view.cx, cy: view.cy };
+  pinch = { mode: null, dist: s.dist, zoom: view.zoom, mid: s.mid, cx: view.cx, cy: view.cy };
   viewSnap = null;
   return true;
 }
@@ -769,7 +773,17 @@ canvas.addEventListener('pointermove', (ev) => {
   touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
   if (!pinch || touches.size < 2) return;
   const s = pinchState();
-  view.zoom = THREE.MathUtils.clamp(pinch.zoom * s.dist / Math.max(1, pinch.dist), 0.25, 3);
+  if (!pinch.mode) {
+    const spread = Math.abs(s.dist - pinch.dist);
+    const travel = Math.hypot(s.mid.x - pinch.mid.x, s.mid.y - pinch.mid.y);
+    if (spread >= PINCH_SPREAD_PX && spread > travel) {
+      // Start zooming from here so the view doesn't jump by the dead zone.
+      pinch = { mode: 'zoom', dist: s.dist, zoom: view.zoom, mid: s.mid, cx: view.cx, cy: view.cy };
+    } else if (travel >= PAN_LOCK_PX && travel > spread) {
+      pinch.mode = 'pan';
+    }
+  }
+  if (pinch.mode === 'zoom') view.zoom = THREE.MathUtils.clamp(pinch.zoom * s.dist / Math.max(1, pinch.dist), ZOOM_MIN, ZOOM_MAX);
   const k = PX_PER_UNIT * view.zoom;
   view.cx = pinch.cx - (s.mid.x - pinch.mid.x) / k;
   view.cy = pinch.cy + (s.mid.y - pinch.mid.y) / k;
@@ -794,7 +808,7 @@ canvas.addEventListener('wheel', (ev) => {
   clearTimeout(wheelSnapTimer);
   wheelSnapTimer = setTimeout(snapView, 150);
   if (ev.ctrlKey || ev.metaKey) {
-    view.zoom = THREE.MathUtils.clamp(view.zoom * Math.exp(-ev.deltaY * 0.01), 0.25, 3);
+    view.zoom = THREE.MathUtils.clamp(view.zoom * Math.exp(-ev.deltaY * 0.01), ZOOM_MIN, ZOOM_MAX);
   } else {
     view.cx += ev.deltaX / (PX_PER_UNIT * view.zoom);
     view.cy -= ev.deltaY / (PX_PER_UNIT * view.zoom);
@@ -1073,21 +1087,38 @@ resize();
 
 const MIN_VIEW_Y = -1; // show at most one row of ground below y = 0
 
-// After a pan or zoom the view eases so its bottom-left corner sits on a grid
-// line: whole cells only, never a sliver of ground.
-let viewSnap = null; // { cx, cy } target, or null
+// After a pan or zoom the view eases onto the grid: the zoom settles so a
+// whole number of rows fills the screen top to bottom, and the bottom-left
+// corner sits on a grid line. Whole cells only, never a sliver of ground.
+let viewSnap = null; // { cx, cy, zoom } target, or null
 let wheelSnapTimer = null;
+const ZOOM_MIN = 0.25, ZOOM_MAX = 3;
 
-function viewSize() {
-  const w = canvas.clientWidth / (PX_PER_UNIT * view.zoom);
-  const h = canvas.clientHeight / (PX_PER_UNIT * view.zoom);
+function viewSize(zoom = view.zoom) {
+  const w = canvas.clientWidth / (PX_PER_UNIT * zoom);
+  const h = canvas.clientHeight / (PX_PER_UNIT * zoom);
   return { w, h };
+}
+
+// The zoom at which exactly `rows` cells fill the screen height.
+const zoomForRows = (rows) => canvas.clientHeight / (PX_PER_UNIT * rows);
+function clampRows(rows, maxZoom = ZOOM_MAX) {
+  const fewest = Math.ceil(canvas.clientHeight / (PX_PER_UNIT * maxZoom));
+  const most = Math.floor(canvas.clientHeight / (PX_PER_UNIT * ZOOM_MIN));
+  return THREE.MathUtils.clamp(rows, Math.max(1, fewest), Math.max(1, most));
+}
+
+// Snap target for a view centred near (cx, cy) at `zoom`.
+function gridTarget(cx, cy, zoom) {
+  const { w, h } = viewSize(zoom);
+  const left = Math.round(cx - w / 2);
+  const bottom = Math.max(MIN_VIEW_Y, Math.round(cy - h / 2));
+  return { cx: left + w / 2, cy: bottom + h / 2, zoom };
 }
 
 // Ease the view to fit the whole board (or the origin when it's empty),
 // zooming in or out as needed.
 function homeView() {
-  view.zoom = 1;
   let minX = Infinity, maxX = -Infinity, maxY = 0;
   for (const item of items.values()) {
     for (const [cx, cy] of footprintCells(item.type, item.x, item.y, item.rot)) {
@@ -1099,18 +1130,15 @@ function homeView() {
   // zooming in or out; capped so a lone piece doesn't fill the screen.
   const fitW = canvas.clientWidth / (PX_PER_UNIT * (maxX - minX + 2));
   const fitH = canvas.clientHeight / (PX_PER_UNIT * (maxY + 3));
-  view.zoom = THREE.MathUtils.clamp(Math.min(fitW, fitH), 0.25, 2);
-  const { w, h } = viewSize();
-  const left = Math.round((minX + maxX) / 2 - w / 2);
-  const bottom = Math.max(MIN_VIEW_Y, Math.round(maxY / 2 - h / 2));
-  viewSnap = { cx: left + w / 2, cy: bottom + h / 2 };
+  const fit = THREE.MathUtils.clamp(Math.min(fitW, fitH), ZOOM_MIN, 2);
+  // Round the rows up so the contraption still fits.
+  const zoom = zoomForRows(clampRows(Math.ceil(canvas.clientHeight / (PX_PER_UNIT * fit) - 1e-6), 2));
+  viewSnap = gridTarget((minX + maxX) / 2, maxY / 2, zoom);
 }
 
 function snapView() {
-  const { w, h } = viewSize();
-  const left = Math.round(view.cx - w / 2);
-  const bottom = Math.max(MIN_VIEW_Y, Math.round(view.cy - h / 2));
-  viewSnap = { cx: left + w / 2, cy: bottom + h / 2 };
+  const rows = clampRows(Math.round(canvas.clientHeight / (PX_PER_UNIT * view.zoom)));
+  viewSnap = gridTarget(view.cx, view.cy, zoomForRows(rows));
 }
 
 function updateViewSnap(dt) {
@@ -1118,9 +1146,11 @@ function updateViewSnap(dt) {
   const k = 1 - Math.exp(-dt * 14);
   view.cx += (viewSnap.cx - view.cx) * k;
   view.cy += (viewSnap.cy - view.cy) * k;
-  if (Math.abs(viewSnap.cx - view.cx) < 0.002 && Math.abs(viewSnap.cy - view.cy) < 0.002) {
+  view.zoom *= Math.pow(viewSnap.zoom / view.zoom, k); // even steps in or out
+  if (Math.abs(viewSnap.cx - view.cx) < 0.002 && Math.abs(viewSnap.cy - view.cy) < 0.002 && Math.abs(viewSnap.zoom / view.zoom - 1) < 0.001) {
     view.cx = viewSnap.cx;
     view.cy = viewSnap.cy;
+    view.zoom = viewSnap.zoom;
     viewSnap = null;
     scheduleSave();
   }
@@ -1197,7 +1227,7 @@ buildTray();
 if (!loadProgress()) loadExample('Domino Run');
 // Start fitted to the contraption, exactly on the grid, no easing.
 homeView();
-if (viewSnap) { view.cx = viewSnap.cx; view.cy = viewSnap.cy; viewSnap = null; }
+if (viewSnap) { Object.assign(view, viewSnap); viewSnap = null; }
 window.addEventListener('beforeunload', () => { if (saveTimer) saveProgress(); });
 setMode('2d');
 frame();
