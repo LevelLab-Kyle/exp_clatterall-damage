@@ -681,8 +681,8 @@ function endDrag(ev) {
 }
 
 canvas.addEventListener('pointerdown', (ev) => {
+  if (trackTouchDown(ev) || pinch) return;
   if (ev.button === 2) return;
-  if (pinch || (ev.pointerType === 'touch' && touches.size > 1)) return;
   const item = !playing && ev.button === 0 ? pickItem(ev) : null;
   try { canvas.setPointerCapture(ev.pointerId); } catch {}
   canvas.classList.add('dragging');
@@ -729,16 +729,24 @@ function pinchState() {
   const [a, b] = [...touches.values()];
   return { dist: Math.hypot(a.x - b.x, a.y - b.y), mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
 }
-canvas.addEventListener('pointerdown', (ev) => {
-  if (ev.pointerType !== 'touch') return;
+// Called first thing by the board's pointerdown handler (not a separate
+// listener, so it can't depend on which listener a browser runs first).
+// Returns true when this finger started a pinch.
+function trackTouchDown(ev) {
+  if (ev.pointerType !== 'touch') return false;
   touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
-  if (touches.size === 2) {
-    cancelDrag(); // the first finger's pan/move becomes a pinch
-    const s = pinchState();
-    pinch = { dist: s.dist, zoom: view.zoom, mid: s.mid, cx: view.cx, cy: view.cy };
-    viewSnap = null;
-  }
-}, true);
+  if (touches.size < 2) return false;
+  cancelDrag(); // the first finger's pan/move becomes a pinch
+  const s = pinchState();
+  pinch = { dist: s.dist, zoom: view.zoom, mid: s.mid, cx: view.cx, cy: view.cy };
+  viewSnap = null;
+  return true;
+}
+
+// Safari has its own pinch gesture events; stop them zooming the page.
+for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(type, (ev) => ev.preventDefault(), { passive: false });
+}
 canvas.addEventListener('pointermove', (ev) => {
   if (!touches.has(ev.pointerId)) return;
   touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
