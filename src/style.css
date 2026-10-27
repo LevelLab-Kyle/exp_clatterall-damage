@@ -270,23 +270,33 @@ select:focus { outline: none; border-color: var(--color-accent); }
   margin-bottom: var(--space-1);
 }
 
+/* The tray slides a page of gadgets at a time with the arrows (or a wheel /
+   swipe), so a drag never turns into a scroll by accident. Whatever is cut
+   off at either edge fades out to show there's more. */
+.tray-row { display: flex; align-items: center; gap: var(--space-1); }
+.tray-row .button-icon { flex: 0 0 auto; font-size: var(--font-size-xl); height: 60px; }
+.tray-row .button-icon.off { visibility: hidden; }
+
 #gadget-list {
+  --fade-l: 0px;
+  --fade-r: 0px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
+}
+#gadget-list.more-left { --fade-l: 60px; }
+#gadget-list.more-right { --fade-r: 60px; }
+
+#gadget-track {
   display: flex;
   gap: var(--space-2);
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: var(--space-1);
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-border-light) transparent;
+  transition: transform 0.35s ease;
 }
-#gadget-list::-webkit-scrollbar { height: 6px; }
-#gadget-list::-webkit-scrollbar-track { background: transparent; }
-#gadget-list::-webkit-scrollbar-thumb { background: var(--color-border-light); border-radius: 3px; }
 
 .gadget-card {
-  /* A sideways swipe scrolls the tray; any other drag picks the gadget up. */
-  touch-action: pan-x;
+  touch-action: none; /* any drag picks the gadget up */
   flex: 0 0 auto;
   width: 90px;
   padding: var(--space-2) var(--space-1);

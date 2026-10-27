@@ -10,7 +10,8 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 
 | Action | How |
 |---|---|
-| Place a gadget | Drag a card from the tray onto the board. It floats freely while dragging and slides into a cell when you let go |
+| Place a gadget | Drag a card from the tray onto the board. It floats freely while dragging and slides into the nearest free cell when you let go |
+| More gadgets | Cards cut off at the tray edge fade out; the ‹ / › arrows (or a scroll/swipe over the tray) slide the next set into view |
 | Move a gadget | Drag it. The selected gadget gets a blue outline, same as the platform builder |
 | Delete | Right-click it, or select + `Delete` |
 | Rotate | Select a gadget and use the ↺ / ↻ buttons next to it, or `R` (counter-clockwise) / `Shift+R` (clockwise). Turns 90° at a time; works mid-drag too. Ramps get all four orientations; the fan blows in the direction it faces. |

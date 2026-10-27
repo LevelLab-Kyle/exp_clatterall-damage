@@ -725,7 +725,7 @@ canvas.addEventListener('pointermove', (ev) => {
 });
 canvas.addEventListener('pointerleave', () => canvas.classList.remove('hover'));
 window.addEventListener('pointerup', endDrag);
-// A cancelled gesture (the browser took it over, e.g. to scroll the tray)
+// A cancelled gesture (the browser took it over, e.g. for a system swipe)
 // puts things back instead of placing.
 window.addEventListener('pointercancel', cancelDrag);
 
@@ -986,11 +986,46 @@ const thumbnailer = (() => {
   };
 })();
 
-// A plain mouse wheel scrolls the tray sideways (trackpads already do).
-trayList.addEventListener('wheel', (ev) => {
-  if (Math.abs(ev.deltaY) <= Math.abs(ev.deltaX)) return;
+// The tray slides along the row of cards; the arrows move it by however
+// many cards are fully on screen.
+const trayTrack = document.getElementById('gadget-track');
+const trayPrev = document.getElementById('tray-prev');
+const trayNext = document.getElementById('tray-next');
+const CARD_STEP = 100; // card width 90 + gap 10
+let trayStart = 0; // index of the first card on screen
+
+function trayFits() { return Math.max(1, Math.floor((trayList.clientWidth + 10) / CARD_STEP)); }
+function trayMaxStart() {
+  // Stop once the last card is fully on screen.
+  return Math.max(0, Math.ceil((trayTrack.children.length * CARD_STEP - 10 - trayList.clientWidth) / CARD_STEP));
+}
+
+function layoutTray() {
+  const max = trayMaxStart();
+  trayStart = THREE.MathUtils.clamp(trayStart, 0, max);
+  const shift = Math.min(trayStart * CARD_STEP, Math.max(0, trayTrack.children.length * CARD_STEP - 10 - trayList.clientWidth));
+  trayTrack.style.transform = `translateX(${-shift}px)`;
+  trayList.classList.toggle('more-left', trayStart > 0);
+  trayList.classList.toggle('more-right', trayStart < max);
+  trayPrev.classList.toggle('off', trayStart === 0);
+  trayNext.classList.toggle('off', trayStart >= max);
+}
+
+function turnTrayPage(dir) {
+  trayStart += dir * trayFits();
+  layoutTray();
+}
+
+trayPrev.onclick = () => turnTrayPage(-1);
+trayNext.onclick = () => turnTrayPage(1);
+// A wheel or trackpad swipe over the tray flips one page per gesture.
+let trayWheelAt = 0;
+document.getElementById('tray').addEventListener('wheel', (ev) => {
   ev.preventDefault();
-  trayList.scrollLeft += ev.deltaY;
+  const d = Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY;
+  if (Math.abs(d) < 4 || ev.timeStamp - trayWheelAt < 400) return;
+  trayWheelAt = ev.timeStamp;
+  turnTrayPage(Math.sign(d));
 }, { passive: false });
 
 function buildTray() {
@@ -1001,8 +1036,9 @@ for (const type of GADGET_ORDER) {
   const src = def.image || thumbnailer(def.makeMesh());
   card.innerHTML = `<img class="icon" alt="" draggable="false" src="${src}"><div class="name">${def.name}</div><div class="hint">${def.hint}</div>`;
   card.addEventListener('pointerdown', (ev) => { if (!playing) beginNewDrag(type, ev); });
-  trayList.appendChild(card);
+  trayTrack.appendChild(card);
 }
+layoutTray();
 }
 
 function setMode(next) {
@@ -1032,7 +1068,7 @@ function resize() {
   camera3d.aspect = w / h;
   camera3d.updateProjectionMatrix();
 }
-window.addEventListener('resize', () => { resize(); homeView(); });
+window.addEventListener('resize', () => { resize(); layoutTray(); homeView(); });
 resize();
 
 const MIN_VIEW_Y = -1; // show at most one row of ground below y = 0
