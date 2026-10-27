@@ -1,11 +1,11 @@
 ---
 name: deploy
-description: Upload the committed Clatter Lab build to the Level Lab web host at ~/www/labs/clatter-lab (rsync over SSH, same flags the platform uses for client folders). Use when the user says /deploy, "deploy", "upload", "put it on the site" or "publish to labs".
+description: Upload the committed Clatter Lab build to the Level Lab web host at ~/www/lab/clatter-lab (rsync over SSH, same flags the platform uses for client folders). Use when the user says /deploy, "deploy", "upload", "put it on the site" or "publish to labs".
 ---
 
 # /deploy — publish Clatter Lab to the web host
 
-Target: `levellab:~/www/labs/clatter-lab` — the `levellab` SSH alias and the
+Target: `levellab:~/www/lab/clatter-lab` — the `levellab` SSH alias and the
 `~/www/...` layout are the same ones `platform/utilities/sync.sh` and
 `deploy.sh` use. Change `REMOTE` below if the page should live elsewhere.
 
@@ -46,7 +46,7 @@ source no longer has, keep the output short.
 
 ```sh
 cd /Users/levellab/Repos/Experiments/Rube-Goldberg
-REMOTE="levellab:~/www/labs/clatter-lab"
+REMOTE="levellab:~/www/lab/clatter-lab"
 FILTER=(--include='index.html' --include='src/' --include='src/*.js' --include='src/style.css'
         --include='assets/' --include='assets/*.js' --include='vendor/' --include='vendor/libs.js'
         --exclude='*')
@@ -57,18 +57,18 @@ rsync -rlvz --delete-after --omit-dir-times --itemize-changes "${FILTER[@]}" ./ 
 ```
 
 `rsync` creates `clatter-lab/` on the host if it doesn't exist yet (its parent
-`~/www/labs` must exist). Exit status 23 (partial transfer) is a warning:
+`~/www/lab` must exist). Exit status 23 (partial transfer) is a warning:
 report it; anything else non-zero is a failure: stop and report the output.
 
 ## 4. Verify
 
 ```sh
-ssh levellab 'ls -la ~/www/labs/clatter-lab && ls ~/www/labs/clatter-lab/src ~/www/labs/clatter-lab/assets ~/www/labs/clatter-lab/vendor'
+ssh levellab 'ls -la ~/www/lab/clatter-lab && ls ~/www/lab/clatter-lab/src ~/www/lab/clatter-lab/assets ~/www/lab/clatter-lab/vendor'
 ```
 
 Expect `index.html`, `src/` (main.js, gadgets.js, examples.js, style.css),
 `assets/sounds.js`, `vendor/libs.js` and nothing else. If the public URL for
-`~/www/labs` is known, also `curl -sI <url>/clatter-lab/` and expect `200`.
+`~/www/lab` is known, also `curl -sI <url>/clatter-lab/` and expect `200`.
 
 ## 5. Report
 

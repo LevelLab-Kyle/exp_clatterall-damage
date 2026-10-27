@@ -610,7 +610,16 @@ function beginNewDrag(type, ev) {
   updateDrag(ev);
 }
 
+// On touch the finger covers the piece being dragged, so drags from the tray
+// and moves hold the piece this many pixels above the finger.
+const TOUCH_LIFT_PX = 70;
+function liftForTouch(ev) {
+  if (ev.pointerType !== 'touch') return ev;
+  return { clientX: ev.clientX, clientY: ev.clientY - TOUCH_LIFT_PX, pointerType: ev.pointerType, pointerId: ev.pointerId };
+}
+
 function updateDrag(ev) {
+  if (pinch) return;
   if (!drag) return;
   if (drag.kind === 'pan') {
     const dx = (ev.clientX - drag.startX) / (PX_PER_UNIT * view.zoom);
@@ -621,7 +630,7 @@ function updateDrag(ev) {
   }
   const type = drag.kind === 'new' ? drag.type : drag.item.type;
   const rot = drag.kind === 'new' ? drag.rot : drag.item.rot;
-  const cell = dragTarget(ev, footprintSize(type, rot), drag.grab);
+  const cell = dragTarget(drag.kind === 'new' ? liftForTouch(ev) : ev, footprintSize(type, rot), drag.grab);
   drag.cell = cell;
   if (drag.kind === 'new') {
     drag.ghost.visible = !!cell;
@@ -673,6 +682,7 @@ function endDrag(ev) {
 
 canvas.addEventListener('pointerdown', (ev) => {
   if (ev.button === 2) return;
+  if (pinch || (ev.pointerType === 'touch' && touches.size > 1)) return;
   const item = !playing && ev.button === 0 ? pickItem(ev) : null;
   try { canvas.setPointerCapture(ev.pointerId); } catch {}
   canvas.classList.add('dragging');
@@ -692,12 +702,59 @@ window.addEventListener('pointermove', updateDrag);
 
 // Pointer cursor over anything selectable (only while editing and not dragging).
 canvas.addEventListener('pointermove', (ev) => {
+  if (ev.pointerType === 'touch') return;
   const over = !drag && !playing && pickItem(ev) !== null;
   canvas.classList.toggle('hover', over);
 });
 canvas.addEventListener('pointerleave', () => canvas.classList.remove('hover'));
 window.addEventListener('pointerup', endDrag);
-window.addEventListener('pointercancel', endDrag);
+// A cancelled gesture (the browser took it over, e.g. to scroll the tray)
+// puts things back instead of placing.
+window.addEventListener('pointercancel', cancelDrag);
+
+function cancelDrag() {
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  canvas.classList.remove('dragging');
+  if (d.kind === 'new') scene.remove(d.ghost);
+  else if (d.kind === 'move') { setFaded(d.item.mesh, false); applyTransform(d.item); }
+  else if (d.kind === 'pan') snapView();
+}
+
+// Two-finger pinch on the board zooms (and pans with the midpoint).
+const touches = new Map(); // pointerId -> { x, y }
+let pinch = null; // { dist, zoom, mid, cx, cy }
+function pinchState() {
+  const [a, b] = [...touches.values()];
+  return { dist: Math.hypot(a.x - b.x, a.y - b.y), mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
+}
+canvas.addEventListener('pointerdown', (ev) => {
+  if (ev.pointerType !== 'touch') return;
+  touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  if (touches.size === 2) {
+    cancelDrag(); // the first finger's pan/move becomes a pinch
+    const s = pinchState();
+    pinch = { dist: s.dist, zoom: view.zoom, mid: s.mid, cx: view.cx, cy: view.cy };
+    viewSnap = null;
+  }
+}, true);
+canvas.addEventListener('pointermove', (ev) => {
+  if (!touches.has(ev.pointerId)) return;
+  touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  if (!pinch || touches.size < 2) return;
+  const s = pinchState();
+  view.zoom = THREE.MathUtils.clamp(pinch.zoom * s.dist / Math.max(1, pinch.dist), 0.25, 3);
+  const k = PX_PER_UNIT * view.zoom;
+  view.cx = pinch.cx - (s.mid.x - pinch.mid.x) / k;
+  view.cy = pinch.cy + (s.mid.y - pinch.mid.y) / k;
+});
+function endTouch(ev) {
+  if (!touches.delete(ev.pointerId)) return;
+  if (pinch && touches.size < 2) { pinch = null; snapView(); }
+}
+window.addEventListener('pointerup', endTouch);
+window.addEventListener('pointercancel', endTouch);
 
 canvas.addEventListener('contextmenu', (ev) => {
   ev.preventDefault();
@@ -966,8 +1023,8 @@ function viewSize() {
   return { w, h };
 }
 
-// Ease the view to show the whole board (or the origin when it's empty) at
-// normal zoom.
+// Ease the view to show the whole board (or the origin when it's empty),
+// at normal zoom or zoomed out just enough to fit.
 function homeView() {
   view.zoom = 1;
   let minX = Infinity, maxX = -Infinity, maxY = 0;
@@ -977,6 +1034,11 @@ function homeView() {
     }
   }
   if (!items.size) { minX = 0; maxX = 16; maxY = 0; }
+  // Zoom out (never in) so the whole contraption fits, with a cell of margin:
+  // on a phone the normal zoom shows only a handful of cells.
+  const fitW = canvas.clientWidth / (PX_PER_UNIT * (maxX - minX + 2));
+  const fitH = canvas.clientHeight / (PX_PER_UNIT * (maxY + 3));
+  view.zoom = THREE.MathUtils.clamp(Math.min(1, fitW, fitH), 0.25, 1);
   const { w, h } = viewSize();
   const left = Math.round((minX + maxX) / 2 - w / 2);
   const bottom = Math.max(MIN_VIEW_Y, Math.round(maxY / 2 - h / 2));
