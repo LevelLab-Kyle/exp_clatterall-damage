@@ -21,10 +21,18 @@ const view = { cx: 8, cy: 4, zoom: 1 };
 
 // 3D view: a fixed tilted camera that follows the same pan/zoom as the flat view.
 const camera3d = new THREE.PerspectiveCamera(45, 1, 0.1, 500);
-const CAMERA_3D_OFFSET = new THREE.Vector3(5, 6, 13);
+// The 3D camera looks down 15° and turns 15° to the right, from 10 units
+// away at 1× zoom.
+const CAMERA_3D_PITCH = 15, CAMERA_3D_YAW = 15, CAMERA_3D_DIST = 10;
+const CAMERA_3D_FOV = 45;
 
 let mode = '2d';
-const activeCamera = () => (mode === '2d' ? camera2d : camera3d);
+// Switching views glides between them: `viewBlend` runs 0 (flat) to 1 (3D).
+// Mid-glide the perspective camera stands in for the flat one, starting
+// almost flat (a very narrow lens from far away) so the hand-off is seamless.
+let viewBlend = 0;
+const VIEW_BLEND_SECONDS = 0.6;
+const activeCamera = () => (viewBlend === 0 ? camera2d : camera3d);
 
 // Selection outline, matching the platform builder: three's outline pass
 // finds the selected object's silhouette (visible and hidden edges alike) and
@@ -83,10 +91,12 @@ floor.receiveShadow = true;
 scene.add(floor);
 
 // Backdrop with an infinite grid, drawn in a shader using world coordinates.
+// The lines are fainter in the 3D view.
+const GRID_FLAT = 0.9, GRID_3D = 0.5;
 const backdrop = new THREE.Mesh(
   new THREE.PlaneGeometry(FLOOR_LEN, FLOOR_LEN),
   new THREE.ShaderMaterial({
-    uniforms: { uSky: { value: new THREE.Color(0xdff1ff) }, uLine: { value: new THREE.Color(0xb9d4e8) } },
+    uniforms: { uSky: { value: new THREE.Color(0xdff1ff) }, uLine: { value: new THREE.Color(0xb9d4e8) }, uGrid: { value: GRID_FLAT } },
     vertexShader: `
       varying vec2 vWorld;
       void main() {
@@ -95,12 +105,12 @@ const backdrop = new THREE.Mesh(
         gl_Position = projectionMatrix * viewMatrix * w;
       }`,
     fragmentShader: `
-      uniform vec3 uSky; uniform vec3 uLine;
+      uniform vec3 uSky; uniform vec3 uLine; uniform float uGrid;
       varying vec2 vWorld;
       void main() {
         vec2 g = abs(fract(vWorld - 0.5) - 0.5) / fwidth(vWorld);
         float line = 1.0 - min(min(g.x, g.y), 1.0);
-        vec3 c = mix(uSky, uLine, line * 0.9);
+        vec3 c = mix(uSky, uLine, line * uGrid);
         if (vWorld.y < 0.0) c = vec3(0.47, 0.67, 0.33);
         gl_FragColor = vec4(c, 1.0);
       }`,
@@ -312,7 +322,7 @@ function loadProgress() {
     if (GADGETS[s.type] && canPlace(s.type, s.x, s.y, s.rot || 0)) addItem(s.type, s.x, s.y, s.rot || 0, !!s.flip);
   }
   if (data.view) { view.cx = data.view.cx; view.cy = data.view.cy; view.zoom = data.view.zoom; }
-  if (data.mode === '3d') setMode('3d');
+  if (data.mode === '3d') setMode('3d', true);
   if (data.example && EXAMPLES[data.example]) examplesSelect.value = data.example;
   return true;
 }
@@ -1055,19 +1065,46 @@ for (const type of GADGET_ORDER) {
 layoutTray();
 }
 
-function setMode(next) {
+function setMode(next, instant = false) {
   mode = next;
   scheduleSave();
   btnView.textContent = next === '2d' ? '3D view' : 'Flat view';
-  backdrop.visible = next === '2d';
-  renderPass.camera = activeCamera();
-  outlinePass.renderCamera = activeCamera();
+  if (instant) viewBlend = next === '3d' ? 1 : 0;
 }
 
-function update3dCamera() {
-  const target = new THREE.Vector3(view.cx, view.cy, 0);
-  camera3d.position.copy(target).addScaledVector(CAMERA_3D_OFFSET, 1 / view.zoom);
-  camera3d.lookAt(target);
+// Ease `viewBlend` toward the chosen view, then aim the cameras.
+const _target = new THREE.Vector3();
+const _offset = new THREE.Vector3();
+function updateViewBlend(dt) {
+  const goal = mode === '3d' ? 1 : 0;
+  const step = dt / VIEW_BLEND_SECONDS;
+  viewBlend = goal > viewBlend ? Math.min(goal, viewBlend + step) : Math.max(goal, viewBlend - step);
+  const e = viewBlend * viewBlend * (3 - 2 * viewBlend); // smoothstep
+  backdrop.material.uniforms.uGrid.value = THREE.MathUtils.lerp(GRID_FLAT, GRID_3D, e);
+  if (viewBlend > 0) aim3dCamera(e);
+  const cam = activeCamera();
+  renderPass.camera = cam;
+  outlinePass.renderCamera = cam;
+}
+
+// Place the perspective camera `e` of the way from flat to the 3D view. The
+// visible height at the board blends between the two views; the lens widens
+// from 0.5° to the full field of view, backing off to keep that height.
+function aim3dCamera(e) {
+  const lerp = THREE.MathUtils.lerp, rad = THREE.MathUtils.degToRad;
+  const flatH = canvas.clientHeight / (PX_PER_UNIT * view.zoom);
+  const fullH = 2 * (CAMERA_3D_DIST / view.zoom) * Math.tan(rad(CAMERA_3D_FOV / 2));
+  const fov = lerp(0.5, CAMERA_3D_FOV, e);
+  const dist = lerp(flatH, fullH, e) / (2 * Math.tan(rad(fov / 2)));
+  _target.set(view.cx, view.cy, 0);
+  _offset.setFromSphericalCoords(dist, rad(90 - CAMERA_3D_PITCH * e), rad(CAMERA_3D_YAW * e));
+  camera3d.position.copy(_target).add(_offset);
+  camera3d.lookAt(_target);
+  camera3d.fov = fov;
+  camera3d.aspect = canvas.clientWidth / canvas.clientHeight; // match the flat camera exactly
+  camera3d.near = Math.max(0.1, dist - 60);
+  camera3d.far = dist + 200;
+  camera3d.updateProjectionMatrix();
 }
 
 // ---------------------------------------------------------------------------
@@ -1082,7 +1119,10 @@ function resize() {
   camera3d.aspect = w / h;
   camera3d.updateProjectionMatrix();
 }
-window.addEventListener('resize', () => { resize(); layoutTray(); homeView(); });
+window.addEventListener('resize', () => { layoutTray(); homeView(); });
+// The stage also changes size without a window resize (the tray filling in,
+// the top bar wrapping on phones), so follow the stage itself.
+new ResizeObserver(resize).observe(stage);
 resize();
 
 const MIN_VIEW_Y = -1; // show at most one row of ground below y = 0
@@ -1173,7 +1213,7 @@ function frame() {
   if (playing) stepPhysics(dt); else { updateTweens(dt); updateMirrorAnims(dt); }
   updateViewSnap(dt);
   update2dCamera(); // also clamps the view above the ground
-  if (mode === '3d') update3dCamera();
+  updateViewBlend(dt);
 
   // Keep the backdrop, floor and shadow light centered on the view.
   const focus = new THREE.Vector3(view.cx, view.cy, 0);
@@ -1229,5 +1269,5 @@ if (!loadProgress()) loadExample('Domino Run');
 homeView();
 if (viewSnap) { Object.assign(view, viewSnap); viewSnap = null; }
 window.addEventListener('beforeunload', () => { if (saveTimer) saveProgress(); });
-setMode('2d');
+setMode(mode, true); // whichever view was saved, without the glide
 frame();
