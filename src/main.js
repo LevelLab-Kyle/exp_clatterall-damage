@@ -693,6 +693,8 @@ canvas.addEventListener('pointerdown', (ev) => {
     drag = { kind: 'move', item, grab, startX: ev.clientX, startY: ev.clientY, moved: false, cell: null };
   } else {
     select(null);
+    // On touch screens one finger never pans: that takes two (see pinch).
+    if (ev.pointerType === 'touch') { canvas.classList.remove('dragging'); return; }
     viewSnap = null;
     drag = { kind: 'pan', startX: ev.clientX, startY: ev.clientY, cx0: view.cx, cy0: view.cy };
   }
@@ -1015,7 +1017,7 @@ function resize() {
   camera3d.aspect = w / h;
   camera3d.updateProjectionMatrix();
 }
-window.addEventListener('resize', () => { resize(); snapView(); });
+window.addEventListener('resize', () => { resize(); homeView(); });
 resize();
 
 const MIN_VIEW_Y = -1; // show at most one row of ground below y = 0
@@ -1031,8 +1033,8 @@ function viewSize() {
   return { w, h };
 }
 
-// Ease the view to show the whole board (or the origin when it's empty),
-// at normal zoom or zoomed out just enough to fit.
+// Ease the view to fit the whole board (or the origin when it's empty),
+// zooming in or out as needed.
 function homeView() {
   view.zoom = 1;
   let minX = Infinity, maxX = -Infinity, maxY = 0;
@@ -1042,11 +1044,11 @@ function homeView() {
     }
   }
   if (!items.size) { minX = 0; maxX = 16; maxY = 0; }
-  // Zoom out (never in) so the whole contraption fits, with a cell of margin:
-  // on a phone the normal zoom shows only a handful of cells.
+  // Fit the contraption with a cell of margin each side (plus headroom),
+  // zooming in or out; capped so a lone piece doesn't fill the screen.
   const fitW = canvas.clientWidth / (PX_PER_UNIT * (maxX - minX + 2));
   const fitH = canvas.clientHeight / (PX_PER_UNIT * (maxY + 3));
-  view.zoom = THREE.MathUtils.clamp(Math.min(1, fitW, fitH), 0.25, 1);
+  view.zoom = THREE.MathUtils.clamp(Math.min(fitW, fitH), 0.25, 2);
   const { w, h } = viewSize();
   const left = Math.round((minX + maxX) / 2 - w / 2);
   const bottom = Math.max(MIN_VIEW_Y, Math.round(maxY / 2 - h / 2));
@@ -1142,8 +1144,8 @@ function loadExample(name) {
 
 buildTray();
 if (!loadProgress()) loadExample('Domino Run');
-// Start exactly on the grid, no easing.
-snapView();
+// Start fitted to the contraption, exactly on the grid, no easing.
+homeView();
 if (viewSnap) { view.cx = viewSnap.cx; view.cy = viewSnap.cy; viewSnap = null; }
 window.addEventListener('beforeunload', () => { if (saveTimer) saveProgress(); });
 setMode('2d');
