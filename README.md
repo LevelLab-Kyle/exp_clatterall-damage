@@ -25,8 +25,9 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 | Nudge | The Move group, or the arrow keys: moves the selected gadget ¼ cell |
 | Pan | Drag empty space or scroll (mouse); two fingers (touch). The view settles onto whole cells and never goes below the ground |
 | Zoom | `Ctrl`/`Cmd` + scroll, or pinch (trackpad or touch screen) |
-| Home | Home button or `H`: fit the whole contraption on screen. Also happens on load, when loading an example and when the window resizes |
+| Home | The ⌂ button in the board's top-left corner, or `H`: fit the whole contraption on screen. Also happens on load, when loading an example and when the window resizes |
 | Play / Reset | Buttons, or `Space` |
+| Clear | The 🗑 button next to Home. Asks "Are you sure?" first; undo brings it all back |
 | Undo / Redo | Buttons, or `Cmd/Ctrl+Z` / `Shift+Cmd/Ctrl+Z` (also `Ctrl+Y`). Covers placing, moving, rotating, deleting and Clear |
 
 Hit the ⭐ Star with anything to win. In a level, the level's own pieces can't be moved, and **Clear** only takes back the parts you placed.
@@ -78,4 +79,4 @@ The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, 
 
 ### Swapping in real 3D assets
 
-Each gadget's `makeMesh()` returns any `THREE.Object3D`. Replace the placeholder geometry with a loaded GLTF (scaled to fit the footprint, origin at the cell center + `offset`) and nothing else needs to change. `makeBody()` stays as the simple collision shape. Sounds play on impacts (tap / thud / boing by what hit what) and on winning; the 🔊 button mutes them.
+Each gadget's `makeMesh()` returns any `THREE.Object3D`. Replace the placeholder geometry with a loaded GLTF (scaled to fit the footprint, origin at the cell center + `offset`) and nothing else needs to change. `makeBody()` stays as the simple collision shape. Sounds play on impacts (tap / thud / boing by what hit what) and on winning.

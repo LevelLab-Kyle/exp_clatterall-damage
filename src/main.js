@@ -439,19 +439,16 @@ function onGoalHit(star) {
 // the Play button or Space, so scripted/synchronous runs stay silent.
 // ---------------------------------------------------------------------------
 
-const SOUND_KEY = 'clatter-lab.sound';
 const sounds = {};
 for (const [key, b64] of Object.entries(typeof SOUND_DATA === 'undefined' ? {} : SOUND_DATA)) {
   sounds[key] = new Audio('data:audio/mpeg;base64,' + b64);
   sounds[key].preload = 'auto';
 }
-let soundOn = true;
-try { soundOn = localStorage.getItem(SOUND_KEY) !== 'off'; } catch {}
 let audioArmed = false; // true during a user-started run
 const lastImpact = new Map(); // body -> time of its last sound
 
 function playSound(key, volume = 1) {
-  if (!audioArmed || !soundOn || !sounds[key]) return;
+  if (!audioArmed || !sounds[key]) return;
   const a = sounds[key].cloneNode();
   a.volume = Math.min(1, Math.max(0, volume));
   a.play().catch(() => {});
@@ -469,7 +466,7 @@ function onBellHit(item, ev) {
 
 // Pick a sound for a collision by what hit what, scaled by how hard.
 function onImpact(body, ev) {
-  if (!audioArmed || !soundOn) return;
+  if (!audioArmed) return;
   const speed = Math.abs(ev.contact.getImpactVelocityAlongNormal());
   if (speed < 2) return;
   const now = performance.now();
@@ -480,13 +477,6 @@ function onImpact(body, ev) {
   const bouncy = body.material === MATS.bouncy || other.material === MATS.bouncy;
   const heavy = body.mass >= 3 || other.mass >= 3;
   playSound(bouncy ? 'boing' : heavy ? 'thud' : 'tap', Math.min(1, 0.2 + speed / 12));
-}
-
-function setSound(on) {
-  soundOn = on;
-  btnSound.textContent = on ? '🔊' : '🔇';
-  btnSound.title = on ? 'Sound on (click to mute)' : 'Sound off (click to unmute)';
-  try { localStorage.setItem(SOUND_KEY, on ? 'on' : 'off'); } catch {}
 }
 
 const _invQ = new THREE.Quaternion();
@@ -690,6 +680,7 @@ function endDrag(ev) {
 }
 
 canvas.addEventListener('pointerdown', (ev) => {
+  clearConfirm.hidden = true;
   if (trackTouchDown(ev) || pinch) return;
   if (ev.button === 2) return;
   const item = !playing && ev.button === 0 ? pickItem(ev) : null;
@@ -824,7 +815,7 @@ window.addEventListener('keydown', (ev) => {
     ev.shiftKey ? redo() : undo();
   }
   if ((ev.metaKey || ev.ctrlKey) && ev.key === 'y') { ev.preventDefault(); redo(); }
-  if (ev.key === 'Escape') select(null);
+  if (ev.key === 'Escape') { select(null); clearConfirm.hidden = true; }
   if (ev.key === ' ') { ev.preventDefault(); if (playing) stopPlay(); else { audioArmed = true; startPlay(); } }
 });
 
@@ -980,17 +971,30 @@ const toolDelete = document.getElementById('tool-delete');
 const trayList = document.getElementById('gadget-list');
 
 btnPlay.onclick = () => { audioArmed = true; startPlay(); };
-const btnSound = document.getElementById('btn-sound');
-btnSound.onclick = () => setSound(!soundOn);
-setSound(soundOn);
 btnReset.onclick = stopPlay;
-// In a level, Clear takes back the player's parts and leaves the level's own pieces.
+// Clear asks first. In a level it takes back the player's parts and leaves
+// the level's own pieces.
+const clearConfirm = document.getElementById('clear-confirm');
+const playerItems = () => [...items.values()].filter((i) => !i.locked);
 btnClear.onclick = () => {
-  const mine = [...items.values()].filter((i) => !i.locked);
+  if (playing || !playerItems().length) return;
+  if (!clearConfirm.hidden) { clearConfirm.hidden = true; return; }
+  const n = playerItems().length;
+  document.getElementById('clear-text').textContent = currentLevel()
+    ? `This takes back the ${n === 1 ? 'part' : n + ' parts'} you placed. The level's own pieces stay.`
+    : `This removes all ${n === 1 ? 'gadget' : n + ' gadgets'} from the board.`;
+  clearConfirm.hidden = false;
+};
+document.getElementById('clear-cancel').onclick = () => { clearConfirm.hidden = true; };
+document.getElementById('clear-yes').onclick = () => {
+  clearConfirm.hidden = true;
+  const mine = playerItems();
   if (playing || !mine.length) return;
   recordEdit();
   mine.forEach(removeItem);
 };
+// Clicks on the floating view tools must not reach the board underneath.
+document.getElementById('view-tools').addEventListener('pointerdown', (ev) => ev.stopPropagation());
 btnUndo.onclick = undo;
 btnRedo.onclick = redo;
 toolRotate.onclick = () => rotateSelected(-1); // clockwise, like its icon
@@ -1010,6 +1014,8 @@ itemTools.addEventListener('pointerdown', (ev) => ev.stopPropagation());
 const _corner = new THREE.Vector3();
 const _bbox = new THREE.Box3();
 function updateItemTools() {
+  btnClear.disabled = playing || !playerItems().length;
+  if (btnClear.disabled) clearConfirm.hidden = true;
   const show = selected && !playing && !drag;
   itemTools.hidden = !show;
   if (!show) return;
@@ -1093,14 +1099,20 @@ function trayMaxStart() {
 }
 
 function layoutTray() {
-  const max = trayMaxStart();
-  trayStart = THREE.MathUtils.clamp(trayStart, 0, max);
+  // An arrow only takes up room when there's somewhere to go that way.
+  // Showing or hiding one changes how much room the cards have, so work it
+  // out twice to settle.
+  let max = 0;
+  for (let pass = 0; pass < 2; pass++) {
+    max = trayMaxStart();
+    trayStart = THREE.MathUtils.clamp(trayStart, 0, max);
+    trayPrev.classList.toggle('off', trayStart === 0);
+    trayNext.classList.toggle('off', trayStart >= max);
+  }
   const shift = Math.min(trayStart * CARD_STEP, Math.max(0, trayTrack.children.length * CARD_STEP - 10 - trayList.clientWidth));
   trayTrack.style.transform = `translateX(${-shift}px)`;
   trayList.classList.toggle('more-left', trayStart > 0);
   trayList.classList.toggle('more-right', trayStart < max);
-  trayPrev.classList.toggle('off', trayStart === 0);
-  trayNext.classList.toggle('off', trayStart >= max);
 }
 
 function turnTrayPage(dir) {

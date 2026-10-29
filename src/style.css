@@ -237,6 +237,36 @@ body.mode-sandbox .examples { flex: 1 1 auto; }
 
 #stage { position: relative; min-height: 0; }
 
+/* Home and Clear float over the board's top-left corner. Clear asks first. */
+#view-tools {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+#view-tools > .button-icon {
+  background: var(--color-surface);
+  border: var(--border-width) var(--border-style) var(--color-border);
+  box-shadow: var(--shadow-drop);
+}
+#view-tools > .button-icon:disabled { opacity: 0.5; cursor: not-allowed; }
+#clear-confirm {
+  position: absolute;
+  top: calc(var(--height-input) + var(--space-2));
+  left: 0;
+  width: 240px;
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+#clear-confirm[hidden] { display: none; }
+.confirm-buttons { display: flex; gap: var(--space-2); justify-content: flex-end; }
+.button-danger { background: var(--color-error); border-color: var(--color-error); color: var(--color-text); }
+body.playing #view-tools #btn-clear { visibility: hidden; }
+
 #scene {
   display: block;
   width: 100%;
@@ -406,7 +436,7 @@ body.mode-sandbox .examples { flex: 1 1 auto; }
    off at either edge fades out to show there's more. */
 .tray-row { display: flex; align-items: center; gap: var(--space-1); }
 .tray-row .button-icon { flex: 0 0 auto; font-size: var(--font-size-xl); height: 60px; }
-.tray-row .button-icon.off { visibility: hidden; }
+.tray-row .button-icon.off { display: none; }
 
 #gadget-list {
   --fade-l: 0px;
@@ -482,8 +512,7 @@ button, select, #item-tools { touch-action: manipulation; }
 /* Phones: the top bar wraps to two rows and its buttons tighten up. */
 @media (max-width: 720px) {
   #topbar { height: auto; flex-wrap: wrap; row-gap: var(--space-1); padding: var(--space-1) var(--space-2); }
-  .brand { order: 1; }
-  .modes { order: 2; margin-left: auto; }
+  .modes { order: 1; }
   .level-info, .examples { order: 3; width: 100%; }
   .examples select { flex: 1 1 auto; }
   .examples label { display: none; }

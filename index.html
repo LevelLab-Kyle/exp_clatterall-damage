@@ -13,7 +13,6 @@
   <body>
     <div id="app">
       <header id="topbar">
-        <div class="brand title">Clatter Lab</div>
         <nav id="modes" class="modes">
           <button id="mode-levels" class="mode" data-mode="levels">Levels</button>
           <button id="mode-sandbox" class="mode" data-mode="sandbox">Sandbox</button>
@@ -31,14 +30,23 @@
           <button id="btn-redo" class="button" title="Redo (Shift+Cmd/Ctrl+Z)" disabled>↷ Redo</button>
           <button id="btn-play" class="button button-accent">▶ Play</button>
           <button id="btn-reset" class="button button-accent" hidden>↺ Reset</button>
-          <button id="btn-clear" class="button" title="Remove everything">Clear</button>
-          <button id="btn-home" class="button" title="Recenter the view (H)">Home</button>
-          <button id="btn-sound" class="button-icon" title="Sound on/off">🔊</button>
         </div>
       </header>
 
       <div id="stage">
         <canvas id="scene"></canvas>
+        <div id="view-tools">
+          <button id="btn-home" class="button-icon" title="Fit everything on screen (H)" aria-label="Home"><svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 7.5L8 2.5l6 5"/><path d="M3.5 6.5V13.5h9V6.5"/><path d="M6.5 13.5v-4h3v4"/></svg></button>
+          <button id="btn-clear" class="button-icon" title="Clear the board" aria-label="Clear"><svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4h11"/><path d="M6 4V2.5h4V4"/><path d="M4 4l.75 9.5h6.5L12 4"/><path d="M6.75 6.5v4.5M9.25 6.5v4.5"/></svg></button>
+          <div id="clear-confirm" class="card" hidden>
+            <div class="title">Are you sure?</div>
+            <div id="clear-text" class="muted"></div>
+            <div class="confirm-buttons">
+              <button id="clear-cancel" class="button">Cancel</button>
+              <button id="clear-yes" class="button button-danger">Clear</button>
+            </div>
+          </div>
+        </div>
         <div id="item-tools" hidden>
           <button id="tool-rotate" class="button-icon" title="Rotate (R, Shift+R goes back)"><svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.5-3.6"/><path d="M12 1.5v3h-3"/></svg></button>
           <div class="tool-group" data-group="scale">
