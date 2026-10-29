@@ -103,8 +103,8 @@ const LEVELS = [
   },
   {
     name: 'Heavy Hitter',
-    goal: 'The marble drops into the first hole. A bowling ball is too big to fall in.',
-    parts: { bowling: 1 },
+    goal: 'The marble drops into the first hole. Make a ball big enough (Size) that it can’t fall in.',
+    parts: { ball: 1 },
     items: [
       ['block', 0, 0, 0, false, { w: 3, h: 2 }], ['ramp', 1, 2, 0, false, { w: 2, h: 1 }], ['marble', 1, 3],
       ['block', 3, 0, 0, false, { w: 2, h: 2 }],

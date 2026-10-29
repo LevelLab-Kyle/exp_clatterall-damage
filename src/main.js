@@ -888,8 +888,61 @@ function nudgeSelected(dx, dy) {
   settle(selected, from);
 }
 
+// The Ball's next size (marble, ball, bowling ball), as { type, x, y }, or
+// null if none fit. It stays centered across and keeps its bottom where it
+// was (the marble's bottom sits a quarter up in its cell).
+const ballBottom = (type) => Math.min(...footprintCells(type, 0, 0).map(([, j]) => j)) / SUB;
+function nextBall(item, dir) {
+  const at = BALL_SIZES.indexOf(item.type);
+  if (at < 0) return null;
+  const old = footprintSize(item.type);
+  for (let k = 1; k < BALL_SIZES.length; k++) {
+    const type = BALL_SIZES[(((at + dir * k) % BALL_SIZES.length) + BALL_SIZES.length) % BALL_SIZES.length];
+    const now = footprintSize(type);
+    const dx = (old.w - now.w) / 2, dy = ballBottom(item.type) - ballBottom(type);
+    for (const [ox, oy] of [[dx, dy], [0, dy], [old.w - now.w, dy]]) {
+      const x = item.x + ox, y = item.y + oy;
+      if (y >= 0 && canPlace(type, x, y, 0, item.id)) return { type, x, y };
+    }
+  }
+  return null;
+}
+
+// Swap a ball for another size in place (same id, so undo and selection keep working).
+function retypeItem(item, type, x, y) {
+  cellsOf(item).forEach(([cx, cy]) => occupied.delete(key(cx, cy)));
+  scene.remove(item.mesh);
+  tweens.delete(item.mesh);
+  item.type = type;
+  item.x = x;
+  item.y = y;
+  item.mesh = GADGETS[type].makeMesh(item);
+  item.mesh.userData.itemId = item.id;
+  scene.add(item.mesh);
+  storeRest(item.mesh);
+  setHighlight(item, false);
+  if (selected === item) outlinePass.selectedObjects = [item.mesh];
+  cellsOf(item).forEach(([cx, cy]) => occupied.set(key(cx, cy), item.id));
+  applyTransform(item);
+  scheduleSave();
+}
+
 function resizeSelected(dir = 1) {
   if (!selected || playing) return;
+  if (BALL_SIZES.includes(selected.type)) {
+    const next = nextBall(selected, dir);
+    if (!next) return;
+    recordEdit();
+    const was = footprintSize(selected.type).w;
+    const from = selected.mesh.position.clone();
+    retypeItem(selected, next.type, next.x, next.y);
+    const k = was / footprintSize(next.type).w; // grow or shrink from the old size
+    const fromS = new THREE.Vector3(k, k, k);
+    selected.mesh.scale.copy(fromS);
+    settle(selected, from);
+    tweens.get(selected.mesh).fromS = fromS;
+    return;
+  }
   const next = nextSize(selected, dir);
   if (!next) return;
   recordEdit();
@@ -1066,7 +1119,7 @@ function updateItemTools() {
   itemTools.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
   // Every action shows on every gadget; ones that don't apply are greyed out.
   toolRotate.disabled = nextRotation(selected, -1) === null;
-  toolSize.disabled = nextSize(selected, 1) === null;
+  toolSize.disabled = (BALL_SIZES.includes(selected.type) ? nextBall(selected, 1) : nextSize(selected, 1)) === null;
   toolFlip.disabled = !GADGETS[selected.type].flippable;
   itemTools.classList.toggle('below', y < 200); // no room above near the top
 }
@@ -1179,7 +1232,7 @@ function partsLeft(type) {
   const level = currentLevel();
   if (!level) return Infinity;
   let used = 0;
-  for (const i of items.values()) if (!i.locked && i.type === type) used++;
+  for (const i of items.values()) if (!i.locked && partType(i.type) === type) used++;
   return (level.parts[type] || 0) - used;
 }
 
@@ -1391,7 +1444,7 @@ function loadLevel(n) {
   clearBoard();
   for (const [type, x, y, rot, flip, size] of level.items) addItem(type, x, y, rot || 0, !!flip, size || null, true);
   for (const s of (levelBoards[level.name] || []).map(upgradeEntry)) {
-    if (GADGETS[s.type] && partsLeft(s.type) > 0 && canPlace(s.type, s.x, s.y, s.rot || 0, null, s.size || null)) {
+    if (GADGETS[s.type] && partsLeft(partType(s.type)) > 0 && canPlace(s.type, s.x, s.y, s.rot || 0, null, s.size || null)) {
       addItem(s.type, s.x, s.y, s.rot || 0, !!s.flip, s.size || null);
     }
   }

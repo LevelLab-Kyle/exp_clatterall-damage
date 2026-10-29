@@ -24,7 +24,7 @@ for (const f of files) {
   const full = path.resolve(root, f);
   if (fs.existsSync(full)) vm.runInContext(fs.readFileSync(full, 'utf8'), ctx, { filename: f });
 }
-const { GADGETS, buildWorld, placeMesh, footprintCells, stepFrame, SUB } = vm.runInContext('({ GADGETS, buildWorld, placeMesh, footprintCells, stepFrame, SUB })', ctx);
+const { GADGETS, buildWorld, placeMesh, footprintCells, stepFrame, partType, SUB } = vm.runInContext('({ GADGETS, buildWorld, placeMesh, footprintCells, stepFrame, partType, SUB })', ctx);
 const EXAMPLES = vm.runInContext('typeof EXAMPLES === "undefined" ? {} : EXAMPLES', ctx);
 const LEVELS = vm.runInContext('typeof LEVELS === "undefined" ? [] : LEVELS', ctx);
 
@@ -115,7 +115,7 @@ LEVELS.forEach((lv, n) => {
   if (bad) problems.push(bad);
   // The solution may only use the parts on offer.
   const used = {};
-  for (const [type] of lv.solution) used[type] = (used[type] || 0) + 1;
+  for (const [t] of lv.solution) { const type = partType(t); used[type] = (used[type] || 0) + 1; }
   for (const [type, k] of Object.entries(used)) if (k > (lv.parts[type] || 0)) problems.push(`solution uses ${k} ${type}, only ${lv.parts[type] || 0} on offer`);
   const t = bad ? null : play(all, trace && !traceFree);
   if (!bad && t === null) problems.push('solution misses the star');

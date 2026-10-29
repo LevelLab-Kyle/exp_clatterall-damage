@@ -22,7 +22,7 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 | Selected-gadget menu | Floats above the selected gadget: **Rotate**, **Size**, **Flip** and 🗑. Every gadget shows every button; ones that don't apply are greyed out |
 | Rotate | The Rotate button or `R` steps clockwise through every way the gadget can turn and wraps around; `Shift+R` steps back. Skips turns that don't fit; works mid-drag too. Most gadgets turn 90° at a time; the pendulum cycles its swing (straight, out left, further left, further right, out right). |
 | Flip | The Flip button or `F`: mirrors a ramp or conveyor left-right as it looks on screen, whatever way it's turned (a ramp slopes the other way, a conveyor runs the other way). Greyed out on other gadgets. Works mid-drag too |
-| Size | The Size button or `S` steps blocks, ramps, dominoes, planks and buckets through a set of sizes and wraps around; `Shift+S` steps back. Blocks go 1×1 → 2×1 → 1×2 → 2×2 → ½×½ → 1×½ → ½×1; ramps go 1×1 → 2×1 → 2×2 → 1×2; dominoes change height only, 1½ → 2 → 1; planks change length only, 3 → 4 → 2; buckets grow to fit the marble → ball → bowling ball; seesaws go 3 wide → 4 wide → 3 shifted left → 3 shifted right. It keeps its bottom-left corner, sliding left and/or down when growing into something, and skips sizes that don't fit |
+| Size | The Size button or `S` steps balls, blocks, ramps, dominoes, planks, buckets and seesaws through a set of sizes and wraps around; `Shift+S` steps back. Balls go ball → bowling ball → marble; blocks go 1×1 → 2×1 → 1×2 → 2×2 → ½×½ → 1×½ → ½×1; ramps go 1×1 → 2×1 → 2×2 → 1×2; dominoes change height only, 1½ → 2 → 1; planks change length only, 3 → 4 → 2; buckets grow to fit the marble → ball → bowling ball; seesaws go 3 wide → 4 wide → 3 shifted left → 3 shifted right. It keeps its bottom-left corner, sliding left and/or down when growing into something, and skips sizes that don't fit |
 | Nudge | Arrow keys: move the selected gadget ¼ cell |
 | Pan | Drag empty space or scroll (mouse); two fingers (touch). The view settles onto whole cells and never goes below the ground |
 | Zoom | `Ctrl`/`Cmd` + scroll, or pinch (trackpad or touch screen) |
@@ -41,9 +41,7 @@ The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, 
 
 | Gadget | Size | What it does |
 |---|---|---|
-| Marble | ½×½ | Rolls and falls. Snaps to the center of a cell (settling onto a ledge when dropped just above one) |
-| Ball | 1×1 | Between the marble and the bowling ball in size and weight |
-| Bowling ball | 2×2 | Heavy. Knocks big things over |
+| Ball | ½×½, 1×1 or 2×2 (Size) | Rolls and falls. One tray card, starting as the medium ball; Size steps it ball (1, medium) → bowling ball (2, heavy) → marble (½, light), staying centered across with its bottom where it was. Each size snaps to the center of its cell. In a level, a ball part can be any size |
 | Domino | ¼×1½ (Size: 2 or 1 tall) | Tips over and takes the next one with it |
 | Ramp | 1×1 (Size cycles it) | Static slope. Flip it to slope the other way, Rotate for all four orientations, and Size makes it long (2×1), steep (1×2) or big (2×2) |
 | Block | 1×1 (Size cycles it) | Solid block to build on |

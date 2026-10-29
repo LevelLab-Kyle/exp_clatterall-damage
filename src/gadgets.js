@@ -133,6 +133,8 @@ function named(mesh, name) {
 const Z_AXIS = new CANNON.Vec3(0, 0, 1);
 
 const GADGETS = {
+  // The tray has one Ball (the medium one): the marble, ball and bowling
+  // ball are its three sizes (see BALL_SIZES; Size swaps between them).
   marble: {
     name: 'Marble',
     hint: 'rolls',
@@ -157,7 +159,7 @@ const GADGETS = {
     w: 1, h: 1,
     dynamic: true,
     makeMesh() {
-      return shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), standard(0xe8553d, { roughness: 0.35 })));
+      return shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), standard(COLORS.marble, { roughness: 0.3 })));
     },
     makeBody() {
       return lockToPlane(new CANNON.Body({ mass: 3, shape: new CANNON.Sphere(0.5), material: MATS.marble }));
@@ -256,7 +258,7 @@ const GADGETS = {
     w: 2, h: 2,
     dynamic: true,
     makeMesh() {
-      return shadowed(new THREE.Mesh(new THREE.SphereGeometry(1, 40, 28), standard(0x4a4668, { roughness: 0.35 })));
+      return shadowed(new THREE.Mesh(new THREE.SphereGeometry(1, 40, 28), standard(COLORS.marble, { roughness: 0.3 })));
     },
     makeBody() {
       return lockToPlane(new CANNON.Body({ mass: 6, shape: new CANNON.Sphere(1), material: MATS.marble }));
@@ -696,7 +698,12 @@ GADGETS.pendulum.makeMesh = function () {
   return g;
 };
 
-const GADGET_ORDER = ['marble', 'ball', 'bowling', 'domino', 'plank', 'ramp', 'block', 'bucket', 'seesaw', 'bouncer', 'conveyor', 'launcher', 'fan', 'pendulum', 'bell', 'star'];
+// The Ball's sizes, smallest first: Size steps through them. In a level's
+// parts, `ball` stands for a ball of any size.
+const BALL_SIZES = ['marble', 'ball', 'bowling'];
+const partType = (type) => (BALL_SIZES.includes(type) ? 'ball' : type);
+
+const GADGET_ORDER = ['ball', 'domino', 'plank', 'ramp', 'block', 'bucket', 'seesaw', 'bouncer', 'conveyor', 'launcher', 'fan', 'pendulum', 'bell', 'star'];
 
 // A resizable gadget's `size` scales its normal width and height separately
 // ({ w, h }); null means its normal size.
