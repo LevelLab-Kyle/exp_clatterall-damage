@@ -1,6 +1,11 @@
 # Clatter Lab
 
-Prototype of a kids' Rube Goldberg builder. Drag gadgets onto a voxel board, press Play, watch it go.
+Prototype of a kids' Rube Goldberg game. Drag gadgets onto a voxel board, press Play, watch it go.
+
+Two modes, switched in the top bar:
+
+- **Levels**: puzzles that get harder as you go. Each level comes with locked pieces already on the board and a few parts in the tray (the number on each card is how many are left). Get anything to the ⭐ to win and unlock the next level. Each new gadget arrives in its own level, marked NEW in the tray. ☰ opens the level picker.
+- **Sandbox**: every gadget, no limits, plus the Examples menu.
 
 ## Run
 
@@ -10,7 +15,7 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 
 | Action | How |
 |---|---|
-| Place a gadget | Drag a card from the tray onto the board. It floats freely while dragging and slides into the nearest free spot on the quarter-cell subgrid when you let go |
+| Place a gadget | Drag a card from the tray onto the board. It floats freely while dragging and slides into the nearest free whole cell when you let go (quarter steps only if no whole cell nearby is free). If that leaves it floating less than a cell above something, it settles down onto it, so a plank drops into a slot and a domino onto a ledge. Use the Move buttons or arrow keys for quarter-cell placement |
 | More gadgets | Cards cut off at the tray edge fade out; the ‹ / › arrows (or a scroll/swipe over the tray) slide the next set into view |
 | Move a gadget | Drag it. The selected gadget gets a blue outline, same as the platform builder |
 | Delete | Right-click it, or select + `Delete` |
@@ -25,9 +30,9 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 | Play / Reset | Buttons, or `Space` |
 | Undo / Redo | Buttons, or `Cmd/Ctrl+Z` / `Shift+Cmd/Ctrl+Z` (also `Ctrl+Y`). Covers placing, moving, rotating, deleting and Clear |
 
-Hit the ⭐ Star with anything to win.
+Hit the ⭐ Star with anything to win. In a level, the level's own pieces can't be moved, and **Clear** only takes back the parts you placed.
 
-Your board, view and chosen example are saved in the browser (localStorage) as you work, and come back when you reopen the page.
+Everything is saved in the browser (localStorage) as you work and comes back when you reopen the page: the Sandbox board, view and example, and for Levels the open level, the levels you've beaten and the parts you'd placed in each one.
 
 The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, Seesaw Launch, Fan Elevator, Wrecking Ball, Bounce Alley, Launch & Catch, Plank Bridge, Bell Ringer). They live in `src/examples.js` as plain lists of `[type, x, y, rot]`.
 
@@ -64,7 +69,10 @@ The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, 
 |---|---|
 | `vendor/libs.js` | Three.js + cannon-es, exposed as `THREE` and `CANNON` globals. |
 | `src/gadgets.js` | Gadget registry (code still says "gadget"). Each gadget has `makeMesh()` (looks), `makeBody()` (physics), a footprint box (`w`,`h`, multiples of ¼; an optional `footprint()` lists just the quarter cells it really fills) and an `offset` inside that box. Multi-part gadgets (seesaw, fan, pendulum) use `makeBodies(group)` to return several bodies plus constraints, and optional `onStep` / `onFrame` hooks. |
-| `src/main.js` | Scene, cameras, board state, drag/drop, play loop, sounds. |
+| `src/main.js` | Scene, cameras, board state, drag/drop, play loop, sounds, Levels / Sandbox modes. |
+| `src/levels.js` | The levels, easiest first: name, goal line, parts on offer, locked pieces, and one known solution (used only by the checker). |
+| `src/examples.js` | Sandbox examples. |
+| `tools/check-levels.cjs` | Plays every level and example in Node with the game's own physics (`buildWorld` in `src/gadgets.js`). A level passes when its solution reaches the star and its locked pieces alone don't. `node tools/check-levels.cjs [level] [--trace / --free]`. |
 | `assets/sounds.js` | Four short sound effects, base64-embedded (see `assets/README.md`). |
 | `src/style.css` | Chrome, on the [Level Lab design system](https://levellab.com/style): dark theme, Roboto, 5px grid, `.button` / `.button-accent` / `.button-icon`. Tokens are copied in so the page still works offline. |
 

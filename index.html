@@ -14,6 +14,14 @@
     <div id="app">
       <header id="topbar">
         <div class="brand title">Clatter Lab</div>
+        <nav id="modes" class="modes">
+          <button id="mode-levels" class="mode" data-mode="levels">Levels</button>
+          <button id="mode-sandbox" class="mode" data-mode="sandbox">Sandbox</button>
+        </nav>
+        <div class="level-info">
+          <button id="btn-levels" class="button" title="Pick a level">☰</button>
+          <span id="level-title" class="level-title"></span>
+        </div>
         <div class="examples">
           <label for="examples" class="muted">Examples</label>
           <select id="examples"></select>
@@ -62,10 +70,28 @@
           <button id="tool-delete" class="button-icon" title="Delete">🗑</button>
         </div>
         <div id="toast" hidden></div>
+        <div id="win-card" class="card" hidden>
+          <div class="win-star">⭐</div>
+          <div id="win-title" class="title"></div>
+          <div id="win-text" class="muted"></div>
+          <div class="win-buttons">
+            <button id="win-again" class="button">↺ Try again</button>
+            <button id="win-next" class="button button-accent">Next level ▶</button>
+          </div>
+        </div>
+        <div id="level-picker" hidden>
+          <div class="picker-panel card">
+            <div class="picker-head">
+              <div class="title">Levels</div>
+              <button id="picker-close" class="button-icon" title="Close">✕</button>
+            </div>
+            <div id="level-grid"></div>
+          </div>
+        </div>
       </div>
 
       <footer id="tray">
-        <div class="tray-label">Drag a gadget onto the board</div>
+        <div id="tray-label" class="tray-label">Drag a gadget onto the board</div>
         <div class="tray-row">
           <button id="tray-prev" class="button-icon" title="Previous gadgets">‹</button>
           <div id="gadget-list"><div id="gadget-track"></div></div>
@@ -77,6 +103,7 @@
     <script src="assets/sounds.js"></script>
     <script src="src/gadgets.js"></script>
     <script src="src/examples.js"></script>
+    <script src="src/levels.js"></script>
     <script src="src/main.js"></script>
   </body>
 </html>

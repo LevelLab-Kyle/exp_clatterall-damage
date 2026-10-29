@@ -440,8 +440,10 @@ const GADGETS = {
     hint: 'carries',
     w: 2, h: 0.5,
     rotatable: true,
-    flipH: (item) => ((item.rot || 0) % 2 === 0 ? { rot: ((item.rot || 0) + 2) % 4 } : null),
-    flipV: (item) => ((item.rot || 0) % 2 === 1 ? { rot: ((item.rot || 0) + 2) % 4 } : null),
+    // Flipping reverses the belt (a `flip` flag). Turning it to rot 2 would
+    // put the belt underneath, where it carries nothing that sits on top.
+    flipH: (item) => ((item.rot || 0) % 2 === 0 ? { flip: !item.flip } : null),
+    flipV: (item) => ((item.rot || 0) % 2 === 1 ? { flip: !item.flip } : null),
     speed: 3,
     makeMesh() {
       const g = new THREE.Group();
@@ -464,6 +466,7 @@ const GADGETS = {
     onStep(item, world) {
       // Anything resting just above the belt gets pulled toward the belt speed.
       const f = facing(item);
+      const dir = item.flip ? -1 : 1;
       const cx = item.x + (footprintSize(item.type, item.rot).w) / 2;
       const cy = item.y + (footprintSize(item.type, item.rot).h) / 2;
       // Local frame: along = belt direction, up = away from the belt surface.
@@ -473,8 +476,8 @@ const GADGETS = {
         const along = rx * f.dx + ry * f.dy;
         const up = rx * f.ux + ry * f.uy;
         if (Math.abs(along) > 1.1 || up < 0 || up > 1.1) continue;
-        const v = b.velocity.x * f.dx + b.velocity.y * f.dy;
-        const push = (this.speed - v) * 8 * b.mass;
+        const v = (b.velocity.x * f.dx + b.velocity.y * f.dy) * dir;
+        const push = (this.speed - v) * 8 * b.mass * dir;
         b.applyForce(new CANNON.Vec3(f.dx * push, f.dy * push, 0));
       }
     },
@@ -482,7 +485,8 @@ const GADGETS = {
       // A true rolling speed (speed / radius, ~27 rad/s) moves the roller's
       // edge lines almost one 30° segment per frame, which the eye reads as
       // spinning backwards. A slower spin reads correctly.
-      item.mesh.traverse((o) => { if (o.name === 'roller') o.rotation.y -= dt * ROLLER_SPIN; });
+      const spin = dt * ROLLER_SPIN * (item.flip ? -1 : 1);
+      item.mesh.traverse((o) => { if (o.name === 'roller') o.rotation.y -= spin; });
     },
     offset: () => new THREE.Vector3(1, 0, 0),
   },
@@ -691,4 +695,69 @@ function footprintCells(type, x, y, rot = 0, size = null) {
   }
   const { w, h } = footprintSize(type, rot, size);
   return rectCells(x, y, w, h);
+}
+
+// ---------------------------------------------------------------------------
+// Physics world for a run. Shared by the game (src/main.js) and the headless
+// level checker (tools/check-levels.cjs), so both play out exactly the same.
+// Each item needs its mesh in place (see placeMesh). Sets item.parts.
+// hooks: onImpact(body, ev), onBell(item, ev), onGoal(item).
+// ---------------------------------------------------------------------------
+
+function buildWorld(items, hooks = {}) {
+  // No sleeping: a slowly leaning domino wouldn't wake a sleeping neighbour.
+  // Pieces are about a metre big, so real gravity feels sluggish. Crank it up for a toy feel.
+  const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -30, 0), allowSleep: false });
+  world.defaultContactMaterial.friction = 0.4;
+  world.defaultContactMaterial.restitution = 0.05;
+  // Dominoes grip the floor so they tip rather than slide. Between dominoes
+  // friction must be exactly 0: any friction at all makes a leaning row of
+  // dominoes lock up in cannon-es instead of toppling along.
+  world.addContactMaterial(new CANNON.ContactMaterial(MATS.domino, MATS.surface, { friction: 1.0, restitution: 0.0 }));
+  world.addContactMaterial(new CANNON.ContactMaterial(MATS.domino, MATS.domino, { friction: 0.0, restitution: 0.1 }));
+  world.addContactMaterial(new CANNON.ContactMaterial(MATS.marble, MATS.surface, { friction: 0.4, restitution: 0.1 }));
+  world.addContactMaterial(new CANNON.ContactMaterial(MATS.marble, MATS.domino, { friction: 0.0, restitution: 0.1 }));
+  world.addContactMaterial(new CANNON.ContactMaterial(MATS.marble, MATS.bouncy, { friction: 0.3, restitution: 0.95 }));
+  world.addContactMaterial(new CANNON.ContactMaterial(MATS.domino, MATS.bouncy, { friction: 0.3, restitution: 0.6 }));
+
+  const ground = new CANNON.Body({ mass: 0, shape: new CANNON.Plane(), material: MATS.surface });
+  ground.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+  world.addBody(ground);
+
+  // Gadget forces (fan etc.) run inside each physics sub-step, never per
+  // frame: at 120 Hz a frame may run no sub-step, and forces would pile up.
+  world.addEventListener('preStep', () => {
+    for (const item of items) GADGETS[item.type].onStep?.(item, world, world.dt);
+  });
+
+  const wp = new THREE.Vector3(), wq = new THREE.Quaternion();
+  for (const item of items) {
+    const def = GADGETS[item.type];
+    item.mesh.updateMatrixWorld(true);
+    const built = def.makeBodies
+      ? def.makeBodies(item.mesh)
+      : { parts: [{ body: def.makeBody(item), mesh: item.mesh }], constraints: [] };
+    for (const part of built.parts) {
+      const src = part.mesh || item.mesh;
+      src.getWorldPosition(wp);
+      src.getWorldQuaternion(wq);
+      part.body.position.copy(wp);
+      part.body.quaternion.copy(wq);
+      world.addBody(part.body);
+      if (hooks.onImpact && part.body.mass > 0) part.body.addEventListener('collide', (ev) => hooks.onImpact(part.body, ev));
+      if (hooks.onBell && def.ring) part.body.addEventListener('collide', (ev) => hooks.onBell(item, ev));
+    }
+    built.constraints.forEach((c) => world.addConstraint(c));
+    item.parts = built.parts;
+    if (def.goal && hooks.onGoal) built.parts[0].body.addEventListener('collide', () => hooks.onGoal(item));
+  }
+  return world;
+}
+
+// Put an item's mesh where it sits on the board.
+function placeMesh(item) {
+  const { position, quaternion } = itemTransform(item);
+  item.mesh.position.copy(position);
+  item.mesh.quaternion.copy(quaternion);
+  GADGETS[item.type].applyRot?.(item);
 }

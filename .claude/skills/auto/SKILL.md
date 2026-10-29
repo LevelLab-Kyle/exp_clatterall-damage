@@ -23,6 +23,14 @@ If nothing is staged, say so and stop.
 for f in src/*.js; do node --check "$f" || exit 1; done
 ```
 
+## 2b. Levels and examples, headless
+
+```sh
+node tools/check-levels.cjs
+```
+
+Every line must say `ok`: each example reaches the star, and each level's solution reaches it while its locked pieces alone don't.
+
 ## 3. Smoke test in Chrome
 
 The game is plain HTML with no build step, but the Chrome extension cannot open `file://` pages, so serve the folder with no-cache headers if port 8077 isn't already serving it:
@@ -48,7 +56,10 @@ Then, with the claude-in-chrome tools (load them with one ToolSearch call: `tabs
 2. Run this with `javascript_tool` and require every line to say `ok`:
 
 ```js
+// This test changes the boards and saved progress; keep a copy to put back at the end.
+const kept = { levels: localStorage.getItem('clatter-lab.levels.v1'), sandbox: localStorage.getItem('clatter-lab.save.v1') };
 const out = [];
+enterSandbox();
 out.push('cards ' + (document.querySelectorAll('.gadget-card').length === GADGET_ORDER.length ? 'ok' : 'FAIL'));
 out.push('tray images ' + ([...document.querySelectorAll('.gadget-card img')].every(i => i.src.startsWith('data:') || i.complete) ? 'ok' : 'FAIL'));
 for (const name of Object.keys(EXAMPLES)) {
@@ -71,10 +82,22 @@ undo(); undo(); undo();
 out.push('undo ' + (items.size === n0 && [...items.values()].find(i => i.type === 'longramp').rot === 0 ? 'ok' : 'FAIL'));
 redo(); redo(); redo(); out.push('redo ' + (items.size === n0 ? 'ok' : 'FAIL'));
 loadExample('Domino Run');
+// Every level's solution wins in the page too.
+for (const k of Object.keys(levelBoards)) delete levelBoards[k];
+LEVELS.forEach((lv, n) => {
+  loadLevel(n); for (const [t, x, y, r, f, s] of lv.solution) addItem(t, x, y, r || 0, !!f, s || null);
+  startPlay(); let w = false; for (let i = 0; i < 1200 && !w; i++) { world.step(1/60); w = won; }
+  stopPlay(); if (!w) out.push('level ' + (n + 1) + ' FAIL');
+});
+out.push('levels ' + (out.some((l) => l.startsWith('level ')) ? 'FAIL' : 'ok'));
+clearTimeout(saveTimer); saveTimer = null;
+saveProgress = scheduleSave = () => {}; // nothing may save over the copy before the reload
+for (const [k, v] of [['clatter-lab.levels.v1', kept.levels], ['clatter-lab.save.v1', kept.sandbox]]) v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v);
+setTimeout(() => location.reload(), 50);
 out.join(' | ');
 ```
 
-3. `read_console_messages` with `onlyErrors: true` — must report no errors.
+3. Wait ~2 s for the reload, then `read_console_messages` with `onlyErrors: true` — must report no errors.
 4. Take one `screenshot` (scale 0.5) and eyeball it: board visible, tray visible, no blank canvas.
 
 If a browser step can't run (extension not connected), say so and stop: do not commit untested work.

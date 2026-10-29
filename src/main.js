@@ -77,12 +77,15 @@ floor.position.set(0, -FLOOR_DEPTH / 2, 0);
 floor.receiveShadow = true;
 scene.add(floor);
 
-// Backdrop with an infinite grid, drawn in a shader using world coordinates.
+// An infinite grid drawn in a shader using world coordinates. Only the lines
+// are drawn; the sky behind is the scene background.
 const GRID_STRENGTH = 0.9;
 const backdrop = new THREE.Mesh(
   new THREE.PlaneGeometry(FLOOR_LEN, FLOOR_LEN),
   new THREE.ShaderMaterial({
-    uniforms: { uSky: { value: new THREE.Color(0xdff1ff) }, uLine: { value: new THREE.Color(0xb9d4e8) }, uGrid: { value: GRID_STRENGTH } },
+    transparent: true,
+    depthWrite: false, // pieces behind the grid's plane still show through it
+    uniforms: { uLine: { value: new THREE.Color(0xb9d4e8) }, uGrid: { value: GRID_STRENGTH } },
     vertexShader: `
       varying vec2 vWorld;
       void main() {
@@ -91,7 +94,7 @@ const backdrop = new THREE.Mesh(
         gl_Position = projectionMatrix * viewMatrix * w;
       }`,
     fragmentShader: `
-      uniform vec3 uSky; uniform vec3 uLine; uniform float uGrid;
+      uniform vec3 uLine; uniform float uGrid;
       varying vec2 vWorld;
       void main() {
         vec2 g = abs(fract(vWorld - 0.5) - 0.5) / fwidth(vWorld);
@@ -102,12 +105,13 @@ const backdrop = new THREE.Mesh(
         vec2 gq = abs(fract(q - 0.5) - 0.5) / fwidth(q);
         float quarter = 1.0 - min(min(gq.x, gq.y), 1.0);
         float room = smoothstep(6.0, 14.0, 1.0 / max(fwidth(q).x, fwidth(q).y));
-        vec3 c = mix(uSky, uLine, max(line, quarter * 0.35 * room) * uGrid);
-        if (vWorld.y < 0.0) c = vec3(0.47, 0.67, 0.33);
-        gl_FragColor = vec4(c, 1.0);
+        float a = max(line, quarter * 0.35 * room) * uGrid;
+        if (vWorld.y < 0.0) a = 0.0; // the ground covers below y = 0
+        gl_FragColor = vec4(uLine, a);
       }`,
   })
 );
+// The grid sits on the back plane, behind the pieces.
 backdrop.position.z = -0.5;
 scene.add(backdrop);
 
@@ -138,14 +142,44 @@ function canPlace(type, x, y, rot = 0, ignoreId = null, size = null) {
 // un-snapped position, so it slides toward whichever side it was closer to.
 // Spots are on the subgrid, up to 8 cells away.
 const snapSub = (v) => Math.round(v * SUB) / SUB;
+// Drops land on whole cells; only when no whole cell nearby is free do they
+// fall back to quarter steps, so a drop always lands somewhere. A piece that
+// would float just above a ledge (less than a cell up) settles onto it.
 function nearestFree(type, ax, ay, rot = 0, ignoreId = null, size = null) {
-  const x0 = snapSub(ax), y0 = Math.max(0, snapSub(ay));
+  const whole = nearestFreeStep(type, ax, ay, rot, ignoreId, size, 1);
+  if (whole) return settleDown(type, whole, rot, ignoreId, size);
+  return nearestFreeStep(type, ax, ay, rot, ignoreId, size, SUB);
+}
+
+// True when something (or the ground) is right under the piece.
+function restsOnSomething(type, x, y, rot, ignoreId, size) {
+  if (y <= 0) return true;
+  return footprintCells(type, x, y, rot, size).some(([i, j]) => {
+    const id = occupied.get(key(i, j - 1));
+    return id != null && id !== ignoreId;
+  });
+}
+
+// Slide a floating spot down a quarter at a time onto whatever is less than
+// a cell below; in open air it stays where it was.
+function settleDown(type, spot, rot, ignoreId, size) {
+  if (restsOnSomething(type, spot.x, spot.y, rot, ignoreId, size)) return spot;
+  for (let k = 1; k < SUB; k++) {
+    const y = spot.y - k / SUB;
+    if (y < 0 || !canPlace(type, spot.x, y, rot, ignoreId, size)) break;
+    if (restsOnSomething(type, spot.x, y, rot, ignoreId, size)) return { ...spot, y };
+  }
+  return spot;
+}
+function nearestFreeStep(type, ax, ay, rot, ignoreId, size, sub) {
+  const snap = (v) => Math.round(v * sub) / sub;
+  const x0 = snap(ax), y0 = Math.max(0, snap(ay));
   const spots = [];
-  for (let r = 0; r <= 8 * SUB; r++) {
+  for (let r = 0; r <= 8 * sub; r++) {
     for (let dx = -r; dx <= r; dx++) {
       for (let dy = -r; dy <= r; dy++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-        const x = x0 + dx / SUB, y = y0 + dy / SUB;
+        const x = x0 + dx / sub, y = y0 + dy / sub;
         if (y >= 0) spots.push({ x, y, d: Math.hypot(x - ax, y - ay) });
       }
     }
@@ -154,12 +188,7 @@ function nearestFree(type, ax, ay, rot = 0, ignoreId = null, size = null) {
   return spots.find((s) => canPlace(type, s.x, s.y, rot, ignoreId, size)) || null;
 }
 
-function applyTransform(item) {
-  const { position, quaternion } = itemTransform(item);
-  item.mesh.position.copy(position);
-  item.mesh.quaternion.copy(quaternion);
-  GADGETS[item.type].applyRot?.(item);
-}
+const applyTransform = placeMesh;
 
 // Gadget visuals may be a single mesh or a group; these apply to every mesh inside.
 function eachMesh(obj, fn) {
@@ -187,8 +216,9 @@ const cellsOf = (item) => footprintCells(item.type, item.x, item.y, item.rot, it
 
 const sameSize = (a, b) => (a?.w ?? 1) === (b?.w ?? 1) && (a?.h ?? 1) === (b?.h ?? 1);
 
-function addItem(type, x, y, rot = 0, flip = false, size = null) {
-  const item = { id: nextId++, type, x, y, rot, flip, size, parts: null };
+// Locked items are a level's own pieces: the player can't move or remove them.
+function addItem(type, x, y, rot = 0, flip = false, size = null, locked = false) {
+  const item = { id: nextId++, type, x, y, rot, flip, size, locked, parts: null };
   item.mesh = GADGETS[type].makeMesh(item);
   items.set(item.id, item);
   cellsOf(item).forEach(([cx, cy]) => occupied.set(key(cx, cy), item.id));
@@ -198,6 +228,7 @@ function addItem(type, x, y, rot = 0, flip = false, size = null) {
   item.mesh.userData.itemId = item.id;
   scene.add(item.mesh);
   scheduleSave();
+  updateTrayCounts();
   return item;
 }
 
@@ -231,6 +262,7 @@ function removeItem(item) {
   scene.remove(item.mesh);
   if (selected === item) select(null);
   scheduleSave();
+  updateTrayCounts();
 }
 
 function select(item) {
@@ -252,7 +284,7 @@ const history = { undo: [], redo: [] };
 const HISTORY_LIMIT = 100;
 
 function snapshot() {
-  return [...items.values()].map((i) => ({ type: i.type, x: i.x, y: i.y, rot: i.rot, flip: !!i.flip, size: i.size ? { ...i.size } : null }));
+  return [...items.values()].map((i) => ({ type: i.type, x: i.x, y: i.y, rot: i.rot, flip: !!i.flip, size: i.size ? { ...i.size } : null, locked: !!i.locked }));
 }
 
 // Call before changing the board.
@@ -266,7 +298,7 @@ function recordEdit() {
 function restore(snap) {
   finishTweens();
   clearBoard();
-  for (const s of snap) addItem(s.type, s.x, s.y, s.rot, s.flip, s.size || null);
+  for (const s of snap) addItem(s.type, s.x, s.y, s.rot, s.flip, s.size || null, !!s.locked);
 }
 
 function undo() {
@@ -289,11 +321,15 @@ function updateHistoryButtons() {
 }
 
 // ---------------------------------------------------------------------------
-// Progress is kept in localStorage: the board, the view and the current
-// example name. Saved (debounced) after every board change or view move.
+// Progress is kept in localStorage, saved (debounced) after every board
+// change or view move:
+// - SAVE_KEY: the Sandbox board, view and example name.
+// - LEVELS_KEY: the open mode and level, levels done, and the parts the
+//   player has placed in each level.
 // ---------------------------------------------------------------------------
 
 const SAVE_KEY = 'clatter-lab.save.v1';
+const LEVELS_KEY = 'clatter-lab.levels.v1';
 let saveTimer = null;
 
 function scheduleSave() {
@@ -303,11 +339,21 @@ function scheduleSave() {
 
 function saveProgress() {
   saveTimer = null;
+  const level = currentLevel();
+  if (level) levelBoards[level.name] = snapshot().filter((s) => !s.locked).map(({ locked, ...s }) => s);
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({
-      items: snapshot(),
-      view: { cx: view.cx, cy: view.cy, zoom: view.zoom },
-      example: examplesSelect.value,
+    if (!level) {
+      localStorage.setItem(SAVE_KEY, JSON.stringify({
+        items: snapshot().map(({ locked, ...s }) => s),
+        view: { cx: view.cx, cy: view.cy, zoom: view.zoom },
+        example: examplesSelect.value,
+      }));
+    }
+    localStorage.setItem(LEVELS_KEY, JSON.stringify({
+      mode,
+      level: LEVELS[levelIndex].name,
+      done: [...levelsDone],
+      boards: levelBoards,
     }));
   } catch { /* private mode or storage full: just don't save */ }
 }
@@ -337,52 +383,8 @@ function startPlay() {
   select(null);
   finishTweens();
   won = false;
-  // No sleeping: a slowly leaning domino wouldn't wake a sleeping neighbour.
-  // Pieces are about a metre big, so real gravity feels sluggish. Crank it up for a toy feel.
-  world = new CANNON.World({ gravity: new CANNON.Vec3(0, -30, 0), allowSleep: false });
-  world.defaultContactMaterial.friction = 0.4;
-  world.defaultContactMaterial.restitution = 0.05;
-  // Dominoes grip the floor so they tip rather than slide. Between dominoes
-  // friction must be exactly 0: any friction at all makes a leaning row of
-  // dominoes lock up in cannon-es instead of toppling along.
-  world.addContactMaterial(new CANNON.ContactMaterial(MATS.domino, MATS.surface, { friction: 1.0, restitution: 0.0 }));
-  world.addContactMaterial(new CANNON.ContactMaterial(MATS.domino, MATS.domino, { friction: 0.0, restitution: 0.1 }));
-  world.addContactMaterial(new CANNON.ContactMaterial(MATS.marble, MATS.surface, { friction: 0.4, restitution: 0.1 }));
-  world.addContactMaterial(new CANNON.ContactMaterial(MATS.marble, MATS.domino, { friction: 0.0, restitution: 0.1 }));
-  world.addContactMaterial(new CANNON.ContactMaterial(MATS.marble, MATS.bouncy, { friction: 0.3, restitution: 0.95 }));
-  world.addContactMaterial(new CANNON.ContactMaterial(MATS.domino, MATS.bouncy, { friction: 0.3, restitution: 0.6 }));
-
-  const ground = new CANNON.Body({ mass: 0, shape: new CANNON.Plane(), material: MATS.surface });
-  ground.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-  world.addBody(ground);
-
-  // Gadget forces (fan etc.) run inside each physics sub-step, never per
-  // frame: at 120 Hz a frame may run no sub-step, and forces would pile up.
-  world.addEventListener('preStep', () => {
-    for (const item of items.values()) GADGETS[item.type].onStep?.(item, world, world.dt);
-  });
-
   scene.updateMatrixWorld(true);
-  const wp = new THREE.Vector3(), wq = new THREE.Quaternion();
-  for (const item of items.values()) {
-    const def = GADGETS[item.type];
-    const built = def.makeBodies
-      ? def.makeBodies(item.mesh)
-      : { parts: [{ body: def.makeBody(item), mesh: item.mesh }], constraints: [] };
-    for (const part of built.parts) {
-      const src = part.mesh || item.mesh;
-      src.getWorldPosition(wp);
-      src.getWorldQuaternion(wq);
-      part.body.position.copy(wp);
-      part.body.quaternion.copy(wq);
-      world.addBody(part.body);
-      if (part.body.mass > 0) part.body.addEventListener('collide', (ev) => onImpact(part.body, ev));
-      if (def.ring) part.body.addEventListener('collide', (ev) => onBellHit(item, ev));
-    }
-    built.constraints.forEach((c) => world.addConstraint(c));
-    item.parts = built.parts;
-    if (def.goal) built.parts[0].body.addEventListener('collide', () => onGoalHit(item));
-  }
+  world = buildWorld([...items.values()], { onImpact, onBell: onBellHit, onGoal: onGoalHit });
 
   playing = true;
   canvas.classList.remove('hover');
@@ -410,6 +412,7 @@ function stopPlay() {
   btnPlay.hidden = false;
   btnReset.hidden = true;
   toast.hidden = true;
+  hideWin();
 }
 
 function onGoalHit(star) {
@@ -419,6 +422,7 @@ function onGoalHit(star) {
   toast.textContent = '⭐ You did it!';
   toast.hidden = false;
   playSound('win', 0.8);
+  if (currentLevel()) levelWon();
 }
 
 // ---------------------------------------------------------------------------
@@ -531,7 +535,7 @@ function dragTarget(ev, size, grab) {
   if (!p) return null;
   const ax = grab ? p.x + grab.x : p.x - size.w / 2;
   const ay = grab ? p.y + grab.y : p.y - size.h / 2;
-  return { ax, ay, x: snapSub(ax), y: snapSub(ay) };
+  return { ax, ay, x: Math.round(ax), y: Math.round(ay) }; // drops snap to whole cells
 }
 
 // Short ease-out animation into place: slide (and turn, if the rotation
@@ -608,7 +612,14 @@ function updateMirrorAnims(dt) {
   }
 }
 
+// The gadget under the pointer that the player may edit (never a level's
+// locked pieces), or null.
 function pickItem(ev) {
+  const item = pickAnyItem(ev);
+  return item && !item.locked ? item : null;
+}
+
+function pickAnyItem(ev) {
   // Gadgets never share a subgrid cell, so the cells a gadget takes up are
   // its hit box: a thin domino is as easy to grab as its box.
   const p = pointerToWorld(ev);
@@ -631,6 +642,7 @@ function pickItem(ev) {
 let drag = null; // { kind: 'new'|'move'|'pan', ... }
 
 function beginNewDrag(type, ev) {
+  if (partsLeft(type) <= 0) return;
   const ghost = GADGETS[type].makeMesh();
   eachMesh(ghost, (m) => { m.material = ghostMat; m.castShadow = false; });
   ghost.visible = false;
@@ -1028,7 +1040,13 @@ const btnSound = document.getElementById('btn-sound');
 btnSound.onclick = () => setSound(!soundOn);
 setSound(soundOn);
 btnReset.onclick = stopPlay;
-btnClear.onclick = () => { if (!playing && items.size) { recordEdit(); clearBoard(); } };
+// In a level, Clear takes back the player's parts and leaves the level's own pieces.
+btnClear.onclick = () => {
+  const mine = [...items.values()].filter((i) => !i.locked);
+  if (playing || !mine.length) return;
+  recordEdit();
+  mine.forEach(removeItem);
+};
 btnUndo.onclick = undo;
 btnRedo.onclick = redo;
 toolRotateCcw.onclick = () => rotateSelected(1);
@@ -1164,17 +1182,49 @@ document.getElementById('tray').addEventListener('wheel', (ev) => {
   turnTrayPage(Math.sign(d));
 }, { passive: false });
 
+// The tray holds every gadget in the Sandbox, or just a level's parts, each
+// card with how many are left. Pictures are made once per gadget.
+const thumbs = {};
+const thumbOf = (type) => (thumbs[type] ??= GADGETS[type].image || thumbnailer(GADGETS[type].makeMesh()));
+
 function buildTray() {
-for (const type of GADGET_ORDER) {
-  const def = GADGETS[type];
-  const card = document.createElement('div');
-  card.className = 'gadget-card';
-  const src = def.image || thumbnailer(def.makeMesh());
-  card.innerHTML = `<img class="icon" alt="" draggable="false" src="${src}"><div class="name">${def.name}</div><div class="hint">${def.hint}</div>`;
-  card.addEventListener('pointerdown', (ev) => { if (!playing) beginNewDrag(type, ev); });
-  trayTrack.appendChild(card);
+  const level = currentLevel();
+  const types = level ? GADGET_ORDER.filter((t) => level.parts[t]) : GADGET_ORDER;
+  trayTrack.replaceChildren();
+  for (const type of types) {
+    const def = GADGETS[type];
+    const card = document.createElement('div');
+    card.className = 'gadget-card';
+    card.dataset.type = type;
+    const isNew = level && newGadgetOf(levelIndex) === type;
+    card.innerHTML = `<img class="icon" alt="" draggable="false" src="${thumbOf(type)}"><div class="name">${def.name}</div><div class="hint">${def.hint}</div>`
+      + (level ? '<div class="count"></div>' : '') + (isNew ? '<div class="new">NEW</div>' : '');
+    card.addEventListener('pointerdown', (ev) => { if (!playing) beginNewDrag(type, ev); });
+    trayTrack.appendChild(card);
+  }
+  trayStart = 0;
+  layoutTray();
+  updateTrayCounts();
 }
-layoutTray();
+
+// How many more of `type` the player may place (always plenty in the Sandbox).
+function partsLeft(type) {
+  const level = currentLevel();
+  if (!level) return Infinity;
+  let used = 0;
+  for (const i of items.values()) if (!i.locked && i.type === type) used++;
+  return (level.parts[type] || 0) - used;
+}
+
+function updateTrayCounts() {
+  if (!currentLevel()) return;
+  for (const card of trayTrack.children) {
+    const count = card.querySelector('.count');
+    if (!count) continue; // the tray is rebuilt for the level right after
+    const left = partsLeft(card.dataset.type);
+    count.textContent = '×' + Math.max(0, left);
+    card.classList.toggle('used-up', left <= 0);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1234,6 +1284,11 @@ function homeView() {
     for (const [cx, cy] of cellsOf(item)) {
       minX = Math.min(minX, cx / SUB); maxX = Math.max(maxX, (cx + 1) / SUB); maxY = Math.max(maxY, (cy + 1) / SUB);
     }
+  }
+  // In a level, also leave room for where the parts go.
+  for (const [type, x, y, rot, , size] of currentLevel()?.solution || []) {
+    const f = footprintSize(type, rot || 0, size || null);
+    minX = Math.min(minX, x); maxX = Math.max(maxX, x + f.w); maxY = Math.max(maxY, y + f.h);
   }
   if (!items.size) { minX = 0; maxX = 16; maxY = 0; }
   // Fit the contraption with a cell of margin each side (plus headroom),
@@ -1309,8 +1364,24 @@ function frame() {
 }
 
 // ---------------------------------------------------------------------------
-// Examples (src/examples.js)
+// Modes: Levels (src/levels.js) and Sandbox (every gadget, plus the examples
+// in src/examples.js).
 // ---------------------------------------------------------------------------
+
+let mode = 'levels';
+let levelIndex = 0;
+const levelsDone = new Set(); // level names
+const levelBoards = {}; // level name -> the player's parts, as snapshot() entries
+
+const currentLevel = () => (mode === 'levels' ? LEVELS[levelIndex] : null);
+const levelOpen = (n) => n === 0 || levelsDone.has(LEVELS[n - 1].name) || levelsDone.has(LEVELS[n].name);
+
+// The gadget a level brings in: the first level whose parts include it.
+function newGadgetOf(n) {
+  const seen = new Set();
+  for (let k = 0; k < n; k++) Object.keys(LEVELS[k].parts).forEach((t) => seen.add(t));
+  return GADGET_ORDER.find((t) => LEVELS[n].parts[t] && !seen.has(t)) || null;
+}
 
 const examplesSelect = document.getElementById('examples');
 for (const name of Object.keys(EXAMPLES)) {
@@ -1325,6 +1396,7 @@ examplesSelect.onchange = () => loadExample(examplesSelect.value);
 function loadExample(name) {
   const ex = EXAMPLES[name];
   if (!ex) return;
+  if (mode !== 'sandbox') enterSandbox(); // examples belong to the Sandbox
   if (playing) stopPlay();
   if (items.size) recordEdit();
   clearBoard();
@@ -1334,10 +1406,138 @@ function loadExample(name) {
   examplesSelect.value = name;
 }
 
-buildTray();
-if (!loadProgress()) loadExample('Domino Run');
-// Start fitted to the contraption, exactly on the grid, no easing.
-homeView();
-if (viewSnap) { Object.assign(view, viewSnap); viewSnap = null; }
-window.addEventListener('beforeunload', () => { if (saveTimer) saveProgress(); });
-frame();
+function resetHistory() {
+  history.undo.length = 0;
+  history.redo.length = 0;
+  updateHistoryButtons();
+}
+
+// Load level n: its locked pieces, then whatever the player had placed there.
+function loadLevel(n) {
+  n = THREE.MathUtils.clamp(n, 0, LEVELS.length - 1);
+  if (playing) stopPlay();
+  if (saveTimer) saveProgress(); // keep the board we're leaving
+  hideWin();
+  mode = 'levels';
+  levelIndex = n;
+  const level = LEVELS[n];
+  clearBoard();
+  for (const [type, x, y, rot, flip, size] of level.items) addItem(type, x, y, rot || 0, !!flip, size || null, true);
+  for (const s of levelBoards[level.name] || []) {
+    if (GADGETS[s.type] && partsLeft(s.type) > 0 && canPlace(s.type, s.x, s.y, s.rot || 0, null, s.size || null)) {
+      addItem(s.type, s.x, s.y, s.rot || 0, !!s.flip, s.size || null);
+    }
+  }
+  resetHistory();
+  showMode();
+  homeView();
+  scheduleSave();
+}
+
+function enterSandbox() {
+  if (mode === 'sandbox') return;
+  if (playing) stopPlay();
+  if (saveTimer) saveProgress();
+  hideWin();
+  mode = 'sandbox';
+  clearBoard();
+  if (!loadProgress()) loadExample('Domino Run');
+  resetHistory();
+  showMode();
+  homeView();
+  scheduleSave();
+}
+
+// Top bar, tray and goal line for the current mode.
+function showMode() {
+  const level = currentLevel();
+  document.body.classList.toggle('mode-levels', !!level);
+  document.body.classList.toggle('mode-sandbox', !level);
+  document.getElementById('mode-levels').classList.toggle('on', !!level);
+  document.getElementById('mode-sandbox').classList.toggle('on', !level);
+  document.getElementById('level-title').textContent = level ? `${levelIndex + 1}. ${level.name}` : '';
+  document.getElementById('tray-label').textContent = level ? level.goal : 'Drag a gadget onto the board';
+  buildTray();
+}
+
+document.getElementById('mode-levels').onclick = () => { if (mode !== 'levels') loadLevel(levelIndex); };
+document.getElementById('mode-sandbox').onclick = enterSandbox;
+
+// Level picker
+const picker = document.getElementById('level-picker');
+const levelGrid = document.getElementById('level-grid');
+
+function openPicker() {
+  levelGrid.replaceChildren();
+  LEVELS.forEach((level, n) => {
+    const tile = document.createElement('button');
+    tile.className = 'level-tile';
+    const done = levelsDone.has(level.name);
+    tile.classList.toggle('done', done);
+    tile.classList.toggle('current', n === levelIndex);
+    tile.disabled = !levelOpen(n);
+    const gadget = newGadgetOf(n);
+    tile.title = level.name + (gadget ? ` (new: ${GADGETS[gadget].name})` : '');
+    tile.innerHTML = `<div class="num">${n + 1}</div>`
+      + (gadget ? `<img class="icon" alt="" src="${thumbOf(gadget)}">` : '<div class="icon"></div>')
+      + `<div class="name">${level.name}</div>`
+      + `<div class="badge">${done ? '✓' : tile.disabled ? '🔒' : ''}</div>`;
+    tile.onclick = () => { closePicker(); loadLevel(n); };
+    levelGrid.appendChild(tile);
+  });
+  picker.hidden = false;
+}
+function closePicker() { picker.hidden = true; }
+document.getElementById('btn-levels').onclick = openPicker;
+document.getElementById('picker-close').onclick = closePicker;
+picker.addEventListener('pointerdown', (ev) => { if (ev.target === picker) closePicker(); });
+
+// Level complete
+const winCard = document.getElementById('win-card');
+let winTimer = null;
+
+function levelWon() {
+  const level = currentLevel();
+  levelsDone.add(level.name);
+  scheduleSave();
+  const last = levelIndex === LEVELS.length - 1;
+  document.getElementById('win-title').textContent = last ? 'You beat every level!' : `Level ${levelIndex + 1} done!`;
+  const next = !last && newGadgetOf(levelIndex + 1);
+  document.getElementById('win-text').textContent = last
+    ? 'Now build anything you like in the Sandbox.'
+    : next ? `Next up: the ${GADGETS[next].name.toLowerCase()}.` : `Next up: ${LEVELS[levelIndex + 1].name}.`;
+  document.getElementById('win-next').textContent = last ? 'Sandbox ▶' : 'Next level ▶';
+  // Let the star spin a moment first.
+  clearTimeout(winTimer);
+  winTimer = setTimeout(() => { toast.hidden = true; winCard.hidden = false; }, 900);
+}
+function hideWin() { clearTimeout(winTimer); winCard.hidden = true; }
+document.getElementById('win-again').onclick = () => { hideWin(); stopPlay(); };
+document.getElementById('win-next').onclick = () => {
+  if (levelIndex === LEVELS.length - 1) enterSandbox();
+  else loadLevel(levelIndex + 1);
+};
+
+// Start in whichever mode was open last; first visits start on level 1.
+(function start() {
+  let data = null;
+  try { data = JSON.parse(localStorage.getItem(LEVELS_KEY)); } catch {}
+  if (data) {
+    (data.done || []).forEach((name) => levelsDone.add(name));
+    Object.assign(levelBoards, data.boards || {});
+  }
+  buildTray();
+  if (data?.mode === 'sandbox') {
+    mode = 'sandbox';
+    if (!loadProgress()) loadExample('Domino Run');
+    showMode();
+  } else {
+    const n = Math.max(0, LEVELS.findIndex((l) => l.name === data?.level));
+    loadLevel(n);
+  }
+  // Start fitted to the board, exactly on the grid, no easing.
+  homeView();
+  if (viewSnap) { Object.assign(view, viewSnap); viewSnap = null; }
+  window.addEventListener('beforeunload', () => { if (saveTimer) saveProgress(); });
+  frame();
+})();
