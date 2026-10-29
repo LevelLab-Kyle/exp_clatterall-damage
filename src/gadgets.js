@@ -748,6 +748,15 @@ function footprintCells(type, x, y, rot = 0, size = null) {
 // hooks: onImpact(body, ev), onBell(item, ev), onGoal(item).
 // ---------------------------------------------------------------------------
 
+// Physics runs at 120 steps a second. At 60, a small fast marble could sink
+// a good way into the ground in one step, and the push back out stopped it
+// dead. stepFrame advances one 1/60 s frame (used by scripted runs).
+const PHYSICS_STEP = 1 / 120;
+function stepFrame(world) {
+  world.step(PHYSICS_STEP);
+  world.step(PHYSICS_STEP);
+}
+
 function buildWorld(items, hooks = {}) {
   // No sleeping: a slowly leaning domino wouldn't wake a sleeping neighbour.
   // Pieces are about a metre big, so real gravity feels sluggish. Crank it up for a toy feel.

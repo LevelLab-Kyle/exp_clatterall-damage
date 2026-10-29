@@ -55,7 +55,7 @@ const EXAMPLES = {
       ['block', 1, 0], ['block', 1, 1], ['block', 1, 2], ['block', 1, 3],
       ['block', 2, 0], ['block', 2, 1], ['block', 2, 2], ['block', 2, 3],
       ['ramp', 1, 4, 0, false, { w: 2, h: 1 }], ['marble', 1, 4.75],
-      ['bouncer', 5, 0], ['bouncer', 9, 0], ['bouncer', 14, 0],
+      ['bouncer', 4.5, 0], ['bouncer', 9.5, 0], ['bouncer', 14, 0],
       ['star', 11, 3],
     ],
   },

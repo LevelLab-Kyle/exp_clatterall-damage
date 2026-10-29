@@ -82,10 +82,10 @@ const LEVELS = [
     items: [
       ['block', 0, 0], ['block', 0, 1], ['block', 0, 2], ['block', 1, 0], ['block', 1, 1], ['block', 1, 2], ['block', 2, 0], ['block', 2, 1], ['block', 2, 2],
       ['ramp', 0, 3], ['marble', 0, 6],
-      ['block', 8, 0], ['block', 8, 1], ['block', 8, 2],
-      ['star', 8, 3],
+      ['block', 7, 0], ['block', 7, 1],
+      ['star', 7, 2],
     ],
-    solution: [['bouncer', 5, 0]],
+    solution: [['bouncer', 4, 0]],
   },
   {
     name: 'Blast Off',
@@ -198,9 +198,9 @@ const LEVELS = [
     items: [
       ['block', 0, 0, 0, false, { w: 3, h: 4 }], ['ramp', 1, 4, 0, false, { w: 2, h: 1 }], ['marble', 1, 6],
       ['block', 7.5, 0, 0, false, { w: 0.5, h: 2.5 }],
-      ['star', 12, 3],
+      ['star', 12, 2],
     ],
-    solution: [['bouncer', 5, 0], ['bouncer', 10, 0]],
+    solution: [['bouncer', 5, 0], ['bouncer', 9, 0]],
   },
   {
     name: 'Special Delivery',
@@ -215,13 +215,13 @@ const LEVELS = [
   },
   {
     name: 'Swing and Boing',
-    goal: 'Knock the domino into the marble, then bounce the marble over the wall.',
+    goal: 'Knock the domino into the ball, then bounce the ball over the wall.',
     parts: { pendulum: 1, bouncer: 1 },
     items: [
       ['block', 4, 0], ['block', 4, 1], ['block', 4, 2], ['block', 4, 3],
       ['block', 5, 0], ['block', 5, 1], ['block', 5, 2], ['block', 5, 3],
       ['block', 6, 0], ['block', 6, 1], ['block', 6, 2], ['ramp', 6, 3],
-      ['domino', 4.25, 4], ['marble', 5, 3.75],
+      ['domino', 4.25, 4], ['ball', 5, 4],
       ['block', 10, 0], ['block', 10, 1],
       ['ramp', 11, 0], ['star', 12.5, 0], ['rampL', 14, 0],
       ['block', 15, 0], ['block', 15, 1],
@@ -255,16 +255,16 @@ const LEVELS = [
   },
   {
     name: 'Back Under',
-    goal: 'Fire the marble, finish the domino chain, and send the far marble back under the shelf.',
+    goal: 'Fire the marble, finish the domino chain, and send the ball back under the shelf.',
     parts: { launcher: 1, domino: 1, rampL: 1 },
     items: [
-      ['block', 0, 0, 0, false, { w: 8, h: 2 }], ['block', 8, 2, 0, false, { w: 3, h: 0.5 }],
+      ['block', 0, 0, 0, false, { w: 8, h: 2 }], ['block', 8, 2, 0, false, { w: 1.5, h: 0.5 }],
       ['marble', 1, 1.75],
-      ['domino', 3.5, 2], ['domino', 7, 2],
-      ['marble', 8, 2.25],
-      ['star', 8.5, 0],
+      ['domino', 2.5, 2], ['domino', 7, 2],
+      ['ball', 8, 2.5],
+      ['star', 8, 0],
     ],
-    solution: [['launcher', 0, 2, 3], ['domino', 5, 2], ['rampL', 11, 0]],
+    solution: [['launcher', 0, 2, 3], ['domino', 6, 2], ['rampL', 9.5, 0]],
   },
   {
     name: 'Up, Over, Back',

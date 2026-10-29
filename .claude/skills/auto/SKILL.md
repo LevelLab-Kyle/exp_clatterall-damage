@@ -64,7 +64,7 @@ out.push('cards ' + (document.querySelectorAll('.gadget-card').length === GADGET
 out.push('tray images ' + ([...document.querySelectorAll('.gadget-card img')].every(i => i.src.startsWith('data:') || i.complete) ? 'ok' : 'FAIL'));
 for (const name of Object.keys(EXAMPLES)) {
   loadExample(name); startPlay(); let w = null;
-  for (let i = 0; i < 360; i++) { world.step(1/60); if (won && w === null) w = (i/60).toFixed(2); }
+  for (let i = 0; i < 360; i++) { stepFrame(world); if (won && w === null) w = (i/60).toFixed(2); }
   stopPlay(); out.push(name + ' ' + (w ? 'ok (' + w + 's)' : 'FAIL'));
 }
 // Editing round-trip on Domino Run (its 2x1 ramp has room to turn):
@@ -86,7 +86,7 @@ loadExample('Domino Run');
 for (const k of Object.keys(levelBoards)) delete levelBoards[k];
 LEVELS.forEach((lv, n) => {
   loadLevel(n); for (const [t, x, y, r, f, s] of lv.solution) addItem(t, x, y, r || 0, !!f, s || null);
-  startPlay(); let w = false; for (let i = 0; i < 1200 && !w; i++) { world.step(1/60); w = won; }
+  startPlay(); let w = false; for (let i = 0; i < 1200 && !w; i++) { stepFrame(world); w = won; }
   stopPlay(); if (!w) out.push('level ' + (n + 1) + ' FAIL');
 });
 out.push('levels ' + (out.some((l) => l.startsWith('level ')) ? 'FAIL' : 'ok'));

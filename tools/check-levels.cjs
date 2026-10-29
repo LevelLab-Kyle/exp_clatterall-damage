@@ -24,7 +24,7 @@ for (const f of files) {
   const full = path.resolve(root, f);
   if (fs.existsSync(full)) vm.runInContext(fs.readFileSync(full, 'utf8'), ctx, { filename: f });
 }
-const { GADGETS, buildWorld, placeMesh, footprintCells, SUB } = vm.runInContext('({ GADGETS, buildWorld, placeMesh, footprintCells, SUB })', ctx);
+const { GADGETS, buildWorld, placeMesh, footprintCells, stepFrame, SUB } = vm.runInContext('({ GADGETS, buildWorld, placeMesh, footprintCells, stepFrame, SUB })', ctx);
 const EXAMPLES = vm.runInContext('typeof EXAMPLES === "undefined" ? {} : EXAMPLES', ctx);
 const LEVELS = vm.runInContext('typeof LEVELS === "undefined" ? [] : LEVELS', ctx);
 
@@ -102,7 +102,7 @@ function play(list, trace = false) {
   const movers = [];
   for (const item of items) for (const p of item.parts) if (p.body.mass > 0) movers.push([item.type, p.body]);
   for (let i = 0; i < SECONDS * 60; i++) {
-    world.step(1 / 60);
+    stepFrame(world);
     if (trace && i % 15 === 0) {
       console.log(`  t=${(i / 60).toFixed(2).padStart(5)}  ` + movers.map(([t, b]) => `${t} ${b.position.x.toFixed(2)},${b.position.y.toFixed(2)}`).join('  |  '));
     }

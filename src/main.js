@@ -499,7 +499,7 @@ function syncPart(item, part) {
 }
 
 function stepPhysics(dt) {
-  world.step(1 / 60, dt, 4);
+  world.step(PHYSICS_STEP, dt, 8);
   for (const item of items.values()) {
     if (!item.parts) continue;
     for (const part of item.parts) {
