@@ -171,12 +171,17 @@ const GADGETS = {
     w: DOMINO.w, h: DOMINO.h,
     rotatable: true,
     dynamic: true,
-    makeMesh() {
-      return shadowed(new THREE.Mesh(new THREE.BoxGeometry(DOMINO.w, DOMINO.h, DOMINO.d), standard(COLORS.domino)));
+    // Size changes the height only: 1½ (normal), 2, then 1. Sizes scale the
+    // normal 1½, so those are x1, x4/3 and x2/3. Weight goes with height.
+    resizable: { sizes: [[1, 1], [1, 4 / 3], [1, 2 / 3]] },
+    makeMesh(item) {
+      const h = DOMINO.h * (item?.size?.h || 1);
+      return shadowed(new THREE.Mesh(new THREE.BoxGeometry(DOMINO.w, h, DOMINO.d), standard(COLORS.domino)));
     },
-    makeBody() {
-      const shape = new CANNON.Box(new CANNON.Vec3(DOMINO.w / 2, DOMINO.h / 2, DOMINO.d / 2));
-      return lockToPlane(new CANNON.Body({ mass: 0.15, shape, material: MATS.domino }));
+    makeBody(item) {
+      const k = item?.size?.h || 1;
+      const shape = new CANNON.Box(new CANNON.Vec3(DOMINO.w / 2, DOMINO.h * k / 2, DOMINO.d / 2));
+      return lockToPlane(new CANNON.Body({ mass: 0.15 * k, shape, material: MATS.domino }));
     },
     offset: () => new THREE.Vector3(DOMINO.w / 2, DOMINO.h / 2, 0),
   },
@@ -189,7 +194,9 @@ const GADGETS = {
     hint: 'grows',
     w: 1, h: 1,
     rotatable: true,
-    resizable: { min: 0.25, max: 4 },
+    // The Size button steps through these (width x height, in its own
+    // unturned frame) and wraps around.
+    resizable: { sizes: [[1, 1], [2, 1], [2, 2], [1, 2]] },
     mirror: false,
     makeMesh(item) {
       const s = item?.size || NORMAL_SIZE;
@@ -202,27 +209,12 @@ const GADGETS = {
     offset: () => new THREE.Vector3(0.5, 0.5, 0),
   },
 
-  longramp: {
-    name: 'Long ramp ↘',
-    hint: 'rotates',
-    w: 2, h: 1,
-    rotatable: true,
-    mirror: false,
-    makeMesh() {
-      return shadowed(new THREE.Mesh(wedgeGeometry(2, 1, 1, this.mirror), standard(COLORS.ramp)));
-    },
-    makeBody() {
-      return new CANNON.Body({ mass: 0, shape: wedgeShape(2, 1, 1, this.mirror), material: MATS.surface });
-    },
-    offset: () => new THREE.Vector3(1, 0.5, 0),
-  },
-
   block: {
     name: 'Block',
     hint: 'grows',
     w: 1, h: 1,
     // Grow / shrink steps the block's width or height by a quarter cell.
-    resizable: { min: 0.25, max: 4 },
+    resizable: { sizes: [[1, 1], [2, 1], [2, 2], [1, 2]] },
     makeMesh(item) {
       const s = item?.size || NORMAL_SIZE;
       return shadowed(new THREE.Mesh(new THREE.BoxGeometry(s.w, s.h, 1), standard(COLORS.block)));
@@ -609,11 +601,16 @@ const GADGETS = {
     w: 3, h: 0.25,
     rotatable: true,
     dynamic: true,
-    makeMesh() {
-      return shadowed(new THREE.Mesh(new THREE.BoxGeometry(3, 0.25, 0.6), standard(0xc98f4a)));
+    // Size changes the length only: 3 (normal), 4, then 2. Sizes scale the
+    // normal 3, so those are x1, x4/3 and x2/3. Weight goes with length.
+    resizable: { sizes: [[1, 1], [4 / 3, 1], [2 / 3, 1]] },
+    makeMesh(item) {
+      const w = 3 * (item?.size?.w || 1);
+      return shadowed(new THREE.Mesh(new THREE.BoxGeometry(w, 0.25, 0.6), standard(0xc98f4a)));
     },
-    makeBody() {
-      return lockToPlane(new CANNON.Body({ mass: 0.5, shape: new CANNON.Box(new CANNON.Vec3(1.5, 0.125, 0.3)), material: MATS.surface }));
+    makeBody(item) {
+      const k = item?.size?.w || 1;
+      return lockToPlane(new CANNON.Body({ mass: 0.5 * k, shape: new CANNON.Box(new CANNON.Vec3(1.5 * k, 0.125, 0.3)), material: MATS.surface }));
     },
     offset: () => new THREE.Vector3(1.5, 0.125, 0),
   },
@@ -621,28 +618,48 @@ const GADGETS = {
   bucket: {
     name: 'Bucket',
     hint: 'catches',
-    // A quarter-cell floor and walls around a 1 x 3/4 inside, which a
-    // marble fits into.
-    w: 1.5, h: 1,
+    // A quarter-thick floor and walls around an open inside, so a bucket
+    // lined up under a ball catches it. Size steps it up for each ball:
+    // inside 1/2 (exactly the marble), 1 1/2 (ball, a quarter to spare each
+    // side), 2 1/2 (bowling ball, likewise). Every bucket is a whole number of
+    // cells wide, so they all sit on half cells.
+    w: 1, h: 0.75,
     rotatable: true,
-    // Just the floor and the two walls: the inside stays free to fill.
-    footprint: () => [...rectCells(0, 0, 1.5, 0.25), ...rectCells(0, 0.25, 0.25, 0.75), ...rectCells(1.25, 0.25, 0.25, 0.75)],
-    makeMesh() {
-      const g = new THREE.Group();
-      const mat = standard(0x4f7fa8);
-      g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.25, 0.8), mat)).translateY(0.125));
-      const left = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.25, 1, 0.8), mat)); left.position.set(-0.625, 0.5, 0); g.add(left);
-      const right = shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.25, 1, 0.8), mat)); right.position.set(0.625, 0.5, 0); g.add(right);
-      return g;
+    resizable: { sizes: [[1, 1], [2, 5 / 3], [3, 7 / 3]] },
+    // Size grows it evenly around its cavity: see nextSize in main.js.
+    cavity: true,
+    floor: 0.25,
+    dims(item) {
+      const k = item?.size || NORMAL_SIZE;
+      const w = this.w * k.w, h = this.h * k.h;
+      return { w, h, t: this.wall(w) };
     },
-    makeBody() {
+    wall: () => 0.25, // wall thickness
+    // Just the floor and the two walls: the inside stays free to fill.
+    footprint(rot, dims) {
+      const { w, h } = dims, t = this.wall(w), f = this.floor;
+      return [...rectCells(0, 0, w, f), ...rectCells(0, f, t, h - f), ...rectCells(w - t, f, t, h - f)];
+    },
+    makeMesh(item) {
+      // One U-shaped piece, so edge lines only trace its outline (separate
+      // floor and wall boxes would show seams where they meet).
+      const { w, h, t } = this.dims(item), f = this.floor;
+      const x0 = -w / 2, x1 = w / 2;
+      const u = new THREE.Shape();
+      [[x0, 0], [x1, 0], [x1, h], [x1 - t, h], [x1 - t, f], [x0 + t, f], [x0 + t, h], [x0, h]]
+        .forEach(([x, y], i) => (i ? u.lineTo(x, y) : u.moveTo(x, y)));
+      const geo = new THREE.ExtrudeGeometry(u, { depth: 0.8, bevelEnabled: false });
+      geo.translate(0, 0, -0.4);
+      return shadowed(new THREE.Mesh(geo, standard(0x4f7fa8)));
+    },
+    makeBody(item) {
+      const { w, h, t } = this.dims(item), f = this.floor;
       const body = new CANNON.Body({ mass: 0, material: MATS.surface });
-      body.addShape(new CANNON.Box(new CANNON.Vec3(0.5, 0.125, 0.4)), new CANNON.Vec3(0, 0.125, 0));
-      body.addShape(new CANNON.Box(new CANNON.Vec3(0.125, 0.5, 0.4)), new CANNON.Vec3(-0.625, 0.5, 0));
-      body.addShape(new CANNON.Box(new CANNON.Vec3(0.125, 0.5, 0.4)), new CANNON.Vec3(0.625, 0.5, 0));
+      body.addShape(new CANNON.Box(new CANNON.Vec3(w / 2 - t, f / 2, 0.4)), new CANNON.Vec3(0, f / 2, 0));
+      for (const side of [-1, 1]) body.addShape(new CANNON.Box(new CANNON.Vec3(t / 2, h / 2, 0.4)), new CANNON.Vec3(side * (w / 2 - t / 2), h / 2, 0));
       return body;
     },
-    offset: () => new THREE.Vector3(0.75, 0, 0),
+    offset: () => new THREE.Vector3(0.5, 0, 0),
   },
 };
 
@@ -656,10 +673,9 @@ GADGETS.pendulum.makeMesh = function () {
 
 // Mirrored ramps: the same pieces sloping down to the left.
 GADGETS.rampL = { ...GADGETS.ramp, name: 'Ramp ↙', mirror: true };
-GADGETS.longrampL = { ...GADGETS.longramp, name: 'Long ramp ↙', mirror: true };
 GADGETS.conveyorL = { ...GADGETS.conveyor, name: 'Conveyor ←', mirror: true };
 
-const GADGET_ORDER = ['marble', 'ball', 'bowling', 'domino', 'plank', 'ramp', 'rampL', 'longramp', 'longrampL', 'block', 'bucket', 'seesaw', 'bouncer', 'conveyor', 'conveyorL', 'launcher', 'fan', 'pendulum', 'bell', 'star'];
+const GADGET_ORDER = ['marble', 'ball', 'bowling', 'domino', 'plank', 'ramp', 'rampL', 'block', 'bucket', 'seesaw', 'bouncer', 'conveyor', 'conveyorL', 'launcher', 'fan', 'pendulum', 'bell', 'star'];
 
 // A resizable gadget's `size` scales its normal width and height separately
 // ({ w, h }); null means its normal size.
@@ -712,9 +728,11 @@ function footprintCells(type, x, y, rot = 0, size = null) {
   const i0 = Math.round(x * SUB), j0 = Math.round(y * SUB);
   if (def.footprint) {
     const r = def.swing ? 0 : rot;
-    const W = Math.round(def.w * SUB), H = Math.round(def.h * SUB);
+    const k = sizeOf(type, size);
+    const dims = { w: def.w * k.w, h: def.h * k.h }; // unturned
+    const W = Math.round(dims.w * SUB), H = Math.round(dims.h * SUB);
     // Turn each cell about the box: (i, j) -> after r quarter turns CCW.
-    return def.footprint(rot).map(([i, j]) => {
+    return def.footprint(rot, dims).map(([i, j]) => {
       for (let k = 0; k < r; k++) [i, j] = [(k % 2 ? W : H) - 1 - j, i];
       return [i0 + i, j0 + j];
     });

@@ -56,7 +56,7 @@ function overlaps(list) {
 }
 
 // Where the game puts a part dropped with its corner at (ax, ay): the
-// nearest free half cell (settling onto a ledge less than a cell below), or
+// nearest free half cell (settling onto a ledge a quarter below), or
 // the nearest free quarter cell if no half cell within 8 is free. Same rule
 // as nearestFree in src/main.js.
 const DROP_STEPS = 2;
@@ -84,16 +84,12 @@ function dropSpot(list, type, ax, ay, rot, size) {
   }
   return null;
 
-  // A whole-cell spot floating less than a cell above something settles onto it.
+  // A spot floating a quarter above something settles onto it.
   function settleDown(spot) {
     const rests = (y) => y <= 0 || footprintCells(type, spot.x, y, rot, size).some(([i, j]) => taken.has(i + ',' + (j - 1)));
     if (rests(spot.y)) return spot;
-    for (let k = 1; k < SUB; k++) {
-      const y = spot.y - k / SUB;
-      if (y < 0 || !fits(spot.x, y)) break;
-      if (rests(y)) return { ...spot, y };
-    }
-    return spot;
+    const y = spot.y - 1 / SUB;
+    return y >= 0 && fits(spot.x, y) && rests(y) ? { ...spot, y } : spot;
   }
 }
 

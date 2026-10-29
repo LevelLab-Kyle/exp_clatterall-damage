@@ -45,22 +45,22 @@ const LEVELS = [
     parts: { domino: 3 },
     spares: true, // a domino chain can jump a one-cell gap, so 2 of the 3 would do
     items: [
-      ['block', 0, 0], ['block', 0, 1], ['block', 1, 0], ['block', 1, 1], ['longramp', 0, 2], ['marble', 0, 2.75],
+      ['block', 0, 0], ['block', 0, 1], ['block', 1, 0], ['block', 1, 1], ['ramp', 0, 2, 0, false, { w: 2, h: 1 }], ['marble', 0, 2.75],
       ['domino', 5, 0], ['domino', 6, 0], ['domino', 10, 0], ['domino', 11, 0],
       ['star', 12, 0],
     ],
     solution: [['domino', 7, 0], ['domino', 8, 0], ['domino', 9, 0]],
   },
   {
-    name: 'Long Ramp',
-    goal: 'The marble can’t jump the gap. Bridge it with a long ramp, down to the lower side.',
-    parts: { longramp: 1 },
+    name: 'Bridge the Gap',
+    goal: 'The marble can’t jump the gap. Make a ramp wider (Size) to bridge it, down to the lower side.',
+    parts: { ramp: 1 },
     items: [
       ['block', 0, 0, 0, false, { w: 3, h: 3 }], ['ramp', 0, 3], ['marble', 0, 5],
       ['block', 5, 0, 0, false, { w: 5, h: 2 }],
       ['star', 9, 2],
     ],
-    solution: [['longramp', 3, 2]],
+    solution: [['ramp', 3, 2, 0, false, { w: 2, h: 1 }]],
   },
   {
     name: 'Plank Bridge',
@@ -106,7 +106,7 @@ const LEVELS = [
     goal: 'The marble drops into the first hole. A bowling ball is too big to fall in.',
     parts: { bowling: 1 },
     items: [
-      ['block', 0, 0, 0, false, { w: 3, h: 2 }], ['longramp', 1, 2], ['marble', 1, 3],
+      ['block', 0, 0, 0, false, { w: 3, h: 2 }], ['ramp', 1, 2, 0, false, { w: 2, h: 1 }], ['marble', 1, 3],
       ['block', 3, 0, 0, false, { w: 2, h: 2 }],
       ['block', 5.75, 0, 0, false, { w: 2, h: 2 }],
       ['block', 8.5, 0, 0, false, { w: 4.5, h: 2 }],
@@ -168,7 +168,7 @@ const LEVELS = [
   {
     name: 'Zigzag',
     goal: 'The star is under the shelf. Send the marble right, then bring it back left.',
-    parts: { ramp: 1, longrampL: 1 },
+    parts: { ramp: 1, rampL: 1 },
     items: [
       ['marble', 0, 7],
       ['block', 0, 5, 0, false, { w: 4, h: 1 }],
@@ -176,7 +176,7 @@ const LEVELS = [
       ['block', 6, 0, 0, false, { w: 1, h: 4 }], ['block', 6, 4, 0, false, { w: 1, h: 3 }],
       ['star', 0, 1],
     ],
-    solution: [['ramp', 0, 6], ['longrampL', 4, 1]],
+    solution: [['ramp', 0, 6], ['rampL', 4, 1, 0, false, { w: 2, h: 1 }]],
   },
   {
     name: 'Long Bridge',
@@ -196,7 +196,7 @@ const LEVELS = [
     goal: 'One bounce won’t reach the star. Can you make the marble bounce twice?',
     parts: { bouncer: 2 },
     items: [
-      ['block', 0, 0, 0, false, { w: 3, h: 4 }], ['longramp', 1, 4], ['marble', 1, 6],
+      ['block', 0, 0, 0, false, { w: 3, h: 4 }], ['ramp', 1, 4, 0, false, { w: 2, h: 1 }], ['marble', 1, 6],
       ['block', 7.5, 0, 0, false, { w: 0.5, h: 2.5 }],
       ['star', 12, 3],
     ],
@@ -208,7 +208,7 @@ const LEVELS = [
     parts: { launcher: 1, conveyor: 1 },
     items: [
       ['block', 12, 0, 0, false, { w: 2, h: 4 }], ['marble', 12, 3.75],
-      ['bucket', 9.5, 0], ['star', 9.75, 0.5],
+      ['bucket', 10, 0], ['star', 10, 1],
       ['block', 6.5, 0, 0, false, { w: 3, h: 1.5 }],
     ],
     solution: [['launcher', 13, 4, 1], ['conveyor', 7, 1.5]],

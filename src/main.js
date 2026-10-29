@@ -144,8 +144,8 @@ function canPlace(type, x, y, rot = 0, ignoreId = null, size = null) {
 const snapSub = (v) => Math.round(v * SUB) / SUB;
 // Drops land on half cells (DROP_STEPS per cell); only when no such spot
 // nearby is free do they fall back to quarter steps, so a drop always lands
-// somewhere. A piece that would float just above a ledge (less than a cell
-// up) settles onto it.
+// somewhere. A piece left floating a quarter above a ledge (a gap the half
+// cells can't close) settles onto it.
 const DROP_STEPS = 2;
 function nearestFree(type, ax, ay, rot = 0, ignoreId = null, size = null) {
   const snapped = nearestFreeStep(type, ax, ay, rot, ignoreId, size, DROP_STEPS);
@@ -162,15 +162,12 @@ function restsOnSomething(type, x, y, rot, ignoreId, size) {
   });
 }
 
-// Slide a floating spot down a quarter at a time onto whatever is less than
-// a cell below; in open air it stays where it was.
+// Drop a spot a quarter onto whatever is right under that; otherwise (in
+// open air, or half a cell or more up) it stays where it was.
 function settleDown(type, spot, rot, ignoreId, size) {
   if (restsOnSomething(type, spot.x, spot.y, rot, ignoreId, size)) return spot;
-  for (let k = 1; k < SUB; k++) {
-    const y = spot.y - k / SUB;
-    if (y < 0 || !canPlace(type, spot.x, y, rot, ignoreId, size)) break;
-    if (restsOnSomething(type, spot.x, y, rot, ignoreId, size)) return { ...spot, y };
-  }
+  const y = spot.y - 1 / SUB;
+  if (y >= 0 && canPlace(type, spot.x, y, rot, ignoreId, size) && restsOnSomething(type, spot.x, y, rot, ignoreId, size)) return { ...spot, y };
   return spot;
 }
 function nearestFreeStep(type, ax, ay, rot, ignoreId, size, sub) {
@@ -297,10 +294,11 @@ function recordEdit() {
   updateHistoryButtons();
 }
 
-// Older saves mark a left-sloping ramp or left-running conveyor with flip;
-// those are their own gadgets now.
+// Older saves mark a left-sloping ramp or left-running conveyor with flip
+// (those are their own gadgets now), and have long ramps (now a 2x1 ramp).
 function upgradeEntry(s) {
-  if (['ramp', 'longramp', 'conveyor'].includes(s.type) && s.flip) return { ...s, type: s.type + 'L', flip: false };
+  if (s.type === 'longramp') s = { ...s, type: 'ramp', size: { w: 2, h: 1 } };
+  if (['ramp', 'conveyor'].includes(s.type) && s.flip) return { ...s, type: s.type + 'L', flip: false };
   return s;
 }
 
@@ -806,6 +804,7 @@ canvas.addEventListener('wheel', (ev) => {
 
 window.addEventListener('keydown', (ev) => {
   if (ev.key === 'r' || ev.key === 'R') rotateSelected(ev.shiftKey ? 1 : -1); // clockwise; Shift goes back
+  if (ev.key === 's' || ev.key === 'S') resizeSelected(ev.shiftKey ? -1 : 1);
   const arrow = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[ev.key];
   if (arrow && selected) { ev.preventDefault(); nudgeSelected(...NUDGE[arrow]); }
   if (ev.key === 'h' || ev.key === 'H') homeView();
@@ -858,26 +857,35 @@ function turnedAnchor(item, rot) {
   return spots.find((at) => canPlace(item.type, at.x, at.y, rot, item.id, item.size)) || null;
 }
 
-// Where a resizable `item` ends up one quarter step wider or narrower
-// (axis 'w') or taller or shorter (axis 'h'), as { size, x, y }, or null at
-// the size limit or with no room. It keeps its bottom-left corner; growing
-// into something on the right (or above) slides it left (or down) a
-// quarter instead, if that's free.
-function nextSize(item, axis, dir) {
+// Where a resizable `item` ends up on its next Size step in `dir` (+1
+// forward, -1 back) through its gadget's list of sizes, wrapping around, as
+// { size, x, y }; null if no other size fits. It keeps its bottom-left
+// corner, or slides left and/or down to make room when growing into
+// something. Sizes that don't fit are skipped.
+function nextSize(item, dir) {
   const r = GADGETS[item.type].resizable;
   if (!r) return null;
+  const sizes = r.sizes.map(([w, h]) => ({ w, h }));
   const was = item.size || NORMAL_SIZE;
-  // `size` is in the piece's own unturned frame; a quarter turn swaps which
-  // of its sides runs across the screen.
-  const side = (item.rot || 0) % 2 ? (axis === 'w' ? 'h' : 'w') : axis;
-  const v = Math.round((was[side] + dir / SUB) * SUB) / SUB;
-  if (v < r.min || v > r.max) return null;
-  const size = { ...was, [side]: v };
-  const back = dir > 0 ? 1 / SUB : 0;
-  const spots = axis === 'w' ? [[0, 0], [-back, 0]] : [[0, 0], [0, -back]];
-  for (const [dx, dy] of spots) {
-    const x = item.x + dx, y = item.y + dy;
-    if (y >= 0 && canPlace(item.type, x, y, item.rot, item.id, size)) return { size, x, y };
+  const at = sizes.findIndex((z) => z.w === was.w && z.h === was.h);
+  const old = footprintSize(item.type, item.rot, item.size);
+  for (let k = 1; k <= sizes.length; k++) {
+    const size = sizes[(((at + dir * k) % sizes.length) + sizes.length) % sizes.length];
+    if (size.w === was.w && size.h === was.h) continue;
+    const now = footprintSize(item.type, item.rot, size);
+    // A bucket grows around its cavity: the cavity's middle and the floor
+    // stay put. Everything else grows from its bottom-left corner.
+    let bx = 0, by = 0;
+    if (GADGETS[item.type].cavity) {
+      const r = (item.rot || 0) % 4; // floor: bottom, right, top, left
+      if (r % 2 === 0) { bx = (old.w - now.w) / 2; if (r === 2) by = old.h - now.h; }
+      else { by = (old.h - now.h) / 2; if (r === 1) bx = old.w - now.w; }
+    }
+    const dx = Math.max(0, now.w - old.w), dy = Math.max(0, now.h - old.h);
+    for (const [ox, oy] of [[bx, by], [0, 0], [-dx, 0], [0, -dy], [-dx, -dy]]) {
+      const x = item.x + ox, y = item.y + oy;
+      if (y >= 0 && canPlace(item.type, x, y, item.rot, item.id, size)) return { size, x, y };
+    }
   }
   return null;
 }
@@ -895,9 +903,9 @@ function nudgeSelected(dx, dy) {
   settle(selected, from);
 }
 
-function resizeSelected(axis, dir) {
+function resizeSelected(dir = 1) {
   if (!selected || playing) return;
-  const next = nextSize(selected, axis, dir);
+  const next = nextSize(selected, dir);
   if (!next) return;
   recordEdit();
   const from = selected.mesh.position.clone();
@@ -963,10 +971,7 @@ const toolNudge = {
   up: document.getElementById('tool-nudge-up'), down: document.getElementById('tool-nudge-down'),
 };
 const NUDGE = { left: [-1, 0], right: [1, 0], up: [0, 1], down: [0, -1] };
-const toolWider = document.getElementById('tool-wider');
-const toolNarrower = document.getElementById('tool-narrower');
-const toolTaller = document.getElementById('tool-taller');
-const toolShorter = document.getElementById('tool-shorter');
+const toolSize = document.getElementById('tool-size');
 const toolDelete = document.getElementById('tool-delete');
 const trayList = document.getElementById('gadget-list');
 
@@ -1002,10 +1007,7 @@ for (const g of toolGroups) {
   g.querySelector('.tool-head').onclick = () => { openGroup = openGroup === g.dataset.group ? null : g.dataset.group; };
 }
 for (const [dir, b] of Object.entries(toolNudge)) b.onclick = () => nudgeSelected(...NUDGE[dir]);
-toolWider.onclick = () => resizeSelected('w', 1);
-toolNarrower.onclick = () => resizeSelected('w', -1);
-toolTaller.onclick = () => resizeSelected('h', 1);
-toolShorter.onclick = () => resizeSelected('h', -1);
+toolSize.onclick = () => resizeSelected(1);
 toolDelete.onclick = () => { if (selected && !playing) { recordEdit(); removeItem(selected); } };
 // Clicks on the floating tools must not reach the board underneath.
 itemTools.addEventListener('pointerdown', (ev) => ev.stopPropagation());
@@ -1035,10 +1037,7 @@ function updateItemTools() {
   itemTools.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
   // Every action shows on every gadget; ones that don't apply are greyed out.
   toolRotate.disabled = nextRotation(selected, -1) === null;
-  toolWider.disabled = nextSize(selected, 'w', 1) === null;
-  toolNarrower.disabled = nextSize(selected, 'w', -1) === null;
-  toolTaller.disabled = nextSize(selected, 'h', 1) === null;
-  toolShorter.disabled = nextSize(selected, 'h', -1) === null;
+  toolSize.disabled = nextSize(selected, 1) === null;
   for (const [dir, b] of Object.entries(toolNudge)) b.disabled = !canNudge(selected, ...NUDGE[dir]);
   // A group's head is greyed out (and its column closed) when none of its
   // actions apply.
