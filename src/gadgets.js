@@ -186,25 +186,24 @@ const GADGETS = {
     offset: () => new THREE.Vector3(DOMINO.w / 2, DOMINO.h / 2, 0),
   },
 
-  // Ramps come in two gadgets, one sloping each way (see the mirrored
-  // copies after GADGETS): a stretched or 2x1 wedge's mirror image isn't one
-  // of its own rotations.
+  // Flip mirrors it to slope the other way (item.flip): a stretched or 2x1
+  // wedge's mirror image isn't one of its own rotations.
   ramp: {
-    name: 'Ramp ↘',
+    name: 'Ramp',
     hint: 'grows',
     w: 1, h: 1,
     rotatable: true,
     // The Size button steps through these (width x height, in its own
     // unturned frame) and wraps around.
     resizable: { sizes: [[1, 1], [2, 1], [2, 2], [1, 2]] },
-    mirror: false,
+    flippable: true,
     makeMesh(item) {
       const s = item?.size || NORMAL_SIZE;
-      return shadowed(new THREE.Mesh(wedgeGeometry(s.w, s.h, 1, this.mirror), standard(COLORS.ramp)));
+      return shadowed(new THREE.Mesh(wedgeGeometry(s.w, s.h, 1, !!item?.flip), standard(COLORS.ramp)));
     },
     makeBody(item) {
       const s = item?.size || NORMAL_SIZE;
-      return new CANNON.Body({ mass: 0, shape: wedgeShape(s.w, s.h, 1, this.mirror), material: MATS.surface });
+      return new CANNON.Body({ mass: 0, shape: wedgeShape(s.w, s.h, 1, !!item?.flip), material: MATS.surface });
     },
     offset: () => new THREE.Vector3(0.5, 0.5, 0),
   },
@@ -468,20 +467,20 @@ const GADGETS = {
     offset: () => new THREE.Vector3(0.5, 0, 0),
   },
 
-  // Two gadgets, one running each way (Conveyor ← is the mirrored copy
-  // after GADGETS). An arrow on the front face shows the belt direction.
+  // Carries things right, or left when flipped (item.flip). An arrow on the
+  // front face shows the belt direction.
   conveyor: {
-    name: 'Conveyor →',
+    name: 'Conveyor',
     hint: 'carries',
     w: 2, h: 0.5,
     rotatable: true,
-    mirror: false,
+    flippable: true,
     speed: 3,
-    makeMesh() {
+    makeMesh(item) {
       const g = new THREE.Group();
       g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(2, 0.375, 0.8), standard(0x3d3d46))).translateY(0.1875));
       const arrow = new THREE.Shape();
-      const s = this.mirror ? -1 : 1;
+      const s = item?.flip ? -1 : 1;
       [[-0.45, 0.05], [0.2, 0.05], [0.2, 0.11], [0.45, 0], [0.2, -0.11], [0.2, -0.05], [-0.45, -0.05]]
         .forEach(([x, y], i) => (i ? arrow.lineTo(x * s, y) : arrow.moveTo(x * s, y)));
       const face = new THREE.Mesh(new THREE.ShapeGeometry(arrow), standard(0xffe08a, { roughness: 0.5 }));
@@ -505,7 +504,7 @@ const GADGETS = {
     onStep(item, world) {
       // Anything resting just above the belt gets pulled toward the belt speed.
       const f = facing(item);
-      const dir = this.mirror ? -1 : 1;
+      const dir = item.flip ? -1 : 1;
       const cx = item.x + (footprintSize(item.type, item.rot).w) / 2;
       const cy = item.y + (footprintSize(item.type, item.rot).h) / 2;
       // Local frame: along = belt direction, up = away from the belt surface.
@@ -524,7 +523,7 @@ const GADGETS = {
       // A true rolling speed (speed / radius, ~27 rad/s) moves the roller's
       // edge lines almost one 30° segment per frame, which the eye reads as
       // spinning backwards. A slower spin reads correctly.
-      const spin = dt * ROLLER_SPIN * (this.mirror ? -1 : 1);
+      const spin = dt * ROLLER_SPIN * (item.flip ? -1 : 1);
       item.mesh.traverse((o) => { if (o.name === 'roller') o.rotation.y -= spin; });
     },
     offset: () => new THREE.Vector3(1, 0, 0),
@@ -697,11 +696,7 @@ GADGETS.pendulum.makeMesh = function () {
   return g;
 };
 
-// Mirrored ramps: the same pieces sloping down to the left.
-GADGETS.rampL = { ...GADGETS.ramp, name: 'Ramp ↙', mirror: true };
-GADGETS.conveyorL = { ...GADGETS.conveyor, name: 'Conveyor ←', mirror: true };
-
-const GADGET_ORDER = ['marble', 'ball', 'bowling', 'domino', 'plank', 'ramp', 'rampL', 'block', 'bucket', 'seesaw', 'bouncer', 'conveyor', 'conveyorL', 'launcher', 'fan', 'pendulum', 'bell', 'star'];
+const GADGET_ORDER = ['marble', 'ball', 'bowling', 'domino', 'plank', 'ramp', 'block', 'bucket', 'seesaw', 'bouncer', 'conveyor', 'launcher', 'fan', 'pendulum', 'bell', 'star'];
 
 // A resizable gadget's `size` scales its normal width and height separately
 // ({ w, h }); null means its normal size.

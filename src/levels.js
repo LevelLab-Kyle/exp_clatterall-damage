@@ -7,8 +7,8 @@
 //             tools/check-levels.cjs, never shown in the game)
 //   spares    optional: true when the solution still wins with a part left out
 //             (the checker otherwise requires every part)
-// Pieces are [type, x, y, rot, flip, size], like the examples (flip is
-// unused now: left-facing ramps and conveyors are their own gadgets). A level's new
+// Pieces are [type, x, y, rot, flip, size], like the examples (flip mirrors
+// ramps and conveyors). A level's new
 // gadget is the first level whose parts include it.
 
 const LEVELS = [
@@ -21,10 +21,10 @@ const LEVELS = [
   },
   {
     name: 'Other Way',
-    goal: 'The star is on the left this time. Use the ramp that slopes the other way.',
-    parts: { rampL: 1 },
+    goal: 'The star is on the left this time. Flip the ramp (F) to slope the other way.',
+    parts: { ramp: 1 },
     items: [['marble', 8, 5], ['star', 2, 0]],
-    solution: [['rampL', 8, 0]],
+    solution: [['ramp', 8, 0, 0, true]],
   },
   {
     name: 'Mind the Gap',
@@ -168,7 +168,7 @@ const LEVELS = [
   {
     name: 'Zigzag',
     goal: 'The star is under the shelf. Send the marble right, then bring it back left.',
-    parts: { ramp: 1, rampL: 1 },
+    parts: { ramp: 2 },
     items: [
       ['marble', 0, 7],
       ['block', 0, 5, 0, false, { w: 4, h: 1 }],
@@ -176,7 +176,7 @@ const LEVELS = [
       ['block', 6, 0, 0, false, { w: 1, h: 4 }], ['block', 6, 4, 0, false, { w: 1, h: 3 }],
       ['star', 0, 1],
     ],
-    solution: [['ramp', 0, 6], ['rampL', 4, 1, 0, false, { w: 2, h: 1 }]],
+    solution: [['ramp', 0, 6], ['ramp', 4, 1, 0, true, { w: 2, h: 1 }]],
   },
   {
     name: 'Long Bridge',
@@ -223,7 +223,7 @@ const LEVELS = [
       ['block', 6, 0], ['block', 6, 1], ['block', 6, 2], ['ramp', 6, 3],
       ['domino', 4.25, 4], ['ball', 5, 4],
       ['block', 10, 0], ['block', 10, 1],
-      ['ramp', 11, 0], ['star', 12.5, 0], ['rampL', 14, 0],
+      ['ramp', 11, 0], ['star', 12.5, 0], ['ramp', 14, 0, 0, true],
       ['block', 15, 0], ['block', 15, 1],
     ],
     solution: [['pendulum', 3, 5, -2], ['bouncer', 8, 0]],
@@ -256,7 +256,7 @@ const LEVELS = [
   {
     name: 'Back Under',
     goal: 'Fire the marble, finish the domino chain, and send the ball back under the shelf.',
-    parts: { launcher: 1, domino: 1, rampL: 1 },
+    parts: { launcher: 1, domino: 1, ramp: 1 },
     items: [
       ['block', 0, 0, 0, false, { w: 8, h: 2 }], ['block', 8, 2, 0, false, { w: 1.5, h: 0.5 }],
       ['marble', 1, 1.75],
@@ -264,19 +264,19 @@ const LEVELS = [
       ['ball', 8, 2.5],
       ['star', 8, 0],
     ],
-    solution: [['launcher', 0, 2, 3], ['domino', 6, 2], ['rampL', 9.5, 0]],
+    solution: [['launcher', 0, 2, 3], ['domino', 6, 2], ['ramp', 9.5, 0, 0, true]],
   },
   {
     name: 'Up, Over, Back',
     goal: 'Pop the marble out of the pit, blow it across, then bring it back under the shelf.',
-    parts: { launcher: 1, fan: 1, conveyorL: 1 },
+    parts: { launcher: 1, fan: 1, conveyor: 1 },
     items: [
       ['block', 0, 0, 0, false, { w: 1, h: 3 }], ['marble', 1, 0.25], ['block', 2.25, 0, 0, false, { w: 1, h: 3 }],
       ['block', 3.25, 2.5, 0, false, { w: 2.75, h: 0.5 }],
       ['block', 3.25, 0, 0, false, { w: 2.75, h: 0.5 }], ['star', 4, 0.5],
       ['block', 8, 0, 0, false, { w: 1, h: 4 }], ['block', 8, 4, 0, false, { w: 1, h: 2 }],
     ],
-    solution: [['launcher', 1, 0], ['fan', 0, 3], ['conveyorL', 6, 0]],
+    solution: [['launcher', 1, 0], ['fan', 0, 3], ['conveyor', 6, 0, 0, true]],
   },
   {
     name: 'Grand Machine',

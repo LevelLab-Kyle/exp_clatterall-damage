@@ -56,41 +56,25 @@ function overlaps(list) {
 }
 
 // Where the game puts a part dropped with its corner at (ax, ay): the
-// nearest free half cell (settling onto a ledge a quarter below), or
-// the nearest free quarter cell if no half cell within 8 is free. Same rule
-// as nearestFree in src/main.js.
-const DROP_STEPS = 2;
+// nearest free quarter-cell spot. Same rule as nearestFree in src/main.js.
 function dropSpot(list, type, ax, ay, rot, size) {
   const taken = new Set();
   for (const [t, x, y, r = 0, , s = null] of list) for (const [i, j] of footprintCells(t, x, y, r, s)) taken.add(i + ',' + j);
   const fits = (x, y) => footprintCells(type, x, y, rot, size).every(([i, j]) => j >= 0 && !taken.has(i + ',' + j));
-  for (const sub of [DROP_STEPS, SUB]) {
-    const snap = (v) => Math.round(v * sub) / sub;
-    const x0 = snap(ax), y0 = Math.max(0, snap(ay));
-    const spots = [];
-    for (let r = 0; r <= 8 * sub; r++) {
-      for (let dx = -r; dx <= r; dx++) {
-        for (let dy = -r; dy <= r; dy++) {
-          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-          const x = x0 + dx / sub, y = y0 + dy / sub;
-          if (y >= 0) spots.push({ x, y, d: Math.hypot(x - ax, y - ay) });
-        }
+  const snap = (v) => Math.round(v * SUB) / SUB;
+  const x0 = snap(ax), y0 = Math.max(0, snap(ay));
+  const spots = [];
+  for (let r = 0; r <= 8 * SUB; r++) {
+    for (let dx = -r; dx <= r; dx++) {
+      for (let dy = -r; dy <= r; dy++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const x = x0 + dx / SUB, y = y0 + dy / SUB;
+        if (y >= 0) spots.push({ x, y, d: Math.hypot(x - ax, y - ay) });
       }
     }
-    spots.sort((a, b) => a.d - b.d);
-    const hit = spots.find((p) => fits(p.x, p.y));
-    if (hit && sub === DROP_STEPS) return settleDown(hit);
-    if (hit) return hit;
   }
-  return null;
-
-  // A spot floating a quarter above something settles onto it.
-  function settleDown(spot) {
-    const rests = (y) => y <= 0 || footprintCells(type, spot.x, y, rot, size).some(([i, j]) => taken.has(i + ',' + (j - 1)));
-    if (rests(spot.y)) return spot;
-    const y = spot.y - 1 / SUB;
-    return y >= 0 && fits(spot.x, y) && rests(y) ? { ...spot, y } : spot;
-  }
+  spots.sort((a, b) => a.d - b.d);
+  return spots.find((p) => fits(p.x, p.y)) || null;
 }
 
 // Seconds until the star is hit, or null. With `trace`, prints every moving

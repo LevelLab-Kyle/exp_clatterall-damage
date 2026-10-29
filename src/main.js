@@ -142,34 +142,13 @@ function canPlace(type, x, y, rot = 0, ignoreId = null, size = null) {
 // un-snapped position, so it slides toward whichever side it was closer to.
 // Spots are on the subgrid, up to 8 cells away.
 const snapSub = (v) => Math.round(v * SUB) / SUB;
-// Drops land on half cells (DROP_STEPS per cell); only when no such spot
-// nearby is free do they fall back to quarter steps, so a drop always lands
-// somewhere. A piece left floating a quarter above a ledge (a gap the half
-// cells can't close) settles onto it.
-const DROP_STEPS = 2;
+// Drops land on the quarter-cell subgrid (DROP_STEPS per cell), on the
+// nearest free spot up to 8 cells away.
+const DROP_STEPS = SUB;
 function nearestFree(type, ax, ay, rot = 0, ignoreId = null, size = null) {
-  const snapped = nearestFreeStep(type, ax, ay, rot, ignoreId, size, DROP_STEPS);
-  if (snapped) return settleDown(type, snapped, rot, ignoreId, size);
-  return nearestFreeStep(type, ax, ay, rot, ignoreId, size, SUB);
+  return nearestFreeStep(type, ax, ay, rot, ignoreId, size, DROP_STEPS);
 }
 
-// True when something (or the ground) is right under the piece.
-function restsOnSomething(type, x, y, rot, ignoreId, size) {
-  if (y <= 0) return true;
-  return footprintCells(type, x, y, rot, size).some(([i, j]) => {
-    const id = occupied.get(key(i, j - 1));
-    return id != null && id !== ignoreId;
-  });
-}
-
-// Drop a spot a quarter onto whatever is right under that; otherwise (in
-// open air, or half a cell or more up) it stays where it was.
-function settleDown(type, spot, rot, ignoreId, size) {
-  if (restsOnSomething(type, spot.x, spot.y, rot, ignoreId, size)) return spot;
-  const y = spot.y - 1 / SUB;
-  if (y >= 0 && canPlace(type, spot.x, y, rot, ignoreId, size) && restsOnSomething(type, spot.x, y, rot, ignoreId, size)) return { ...spot, y };
-  return spot;
-}
 function nearestFreeStep(type, ax, ay, rot, ignoreId, size, sub) {
   const snap = (v) => Math.round(v * sub) / sub;
   const x0 = snap(ax), y0 = Math.max(0, snap(ay));
@@ -266,7 +245,6 @@ function removeItem(item) {
 }
 
 function select(item) {
-  if (item !== selected) openGroup = null;
   selected = item;
   outlinePass.selectedObjects = selected ? [selected.mesh] : [];
   if (!item) itemTools.hidden = true; // right away, not on the next frame
@@ -295,11 +273,11 @@ function recordEdit() {
   updateHistoryButtons();
 }
 
-// Older saves mark a left-sloping ramp or left-running conveyor with flip
-// (those are their own gadgets now), and have long ramps (now a 2x1 ramp).
+// Older saves have long ramps (now a 2x1 ramp) and separate left-facing
+// ramps and conveyors (now the same gadget, flipped).
 function upgradeEntry(s) {
   if (s.type === 'longramp') s = { ...s, type: 'ramp', size: { w: 2, h: 1 } };
-  if (['ramp', 'conveyor'].includes(s.type) && s.flip) return { ...s, type: s.type + 'L', flip: false };
+  if (s.type === 'rampL' || s.type === 'conveyorL') s = { ...s, type: s.type.slice(0, -1), flip: true };
   return s;
 }
 
@@ -533,7 +511,7 @@ function dragTarget(ev, size, grab) {
   if (!p) return null;
   const ax = grab ? p.x + grab.x : p.x - size.w / 2;
   const ay = grab ? p.y + grab.y : p.y - size.h / 2;
-  const snap = (v) => Math.round(v * DROP_STEPS) / DROP_STEPS; // drops snap to half cells
+  const snap = (v) => Math.round(v * DROP_STEPS) / DROP_STEPS; // drops snap to quarter cells
   return { ax, ay, x: snap(ax), y: snap(ay) };
 }
 
@@ -806,6 +784,7 @@ canvas.addEventListener('wheel', (ev) => {
 window.addEventListener('keydown', (ev) => {
   if (ev.key === 'r' || ev.key === 'R') rotateSelected(ev.shiftKey ? 1 : -1); // clockwise; Shift goes back
   if (ev.key === 's' || ev.key === 'S') resizeSelected(ev.shiftKey ? -1 : 1);
+  if (ev.key === 'f' || ev.key === 'F') flipSelected();
   const arrow = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[ev.key];
   if (arrow && selected) { ev.preventDefault(); nudgeSelected(...NUDGE[arrow]); }
   if (ev.key === 'h' || ev.key === 'H') homeView();
@@ -939,6 +918,42 @@ function resizeSelected(dir = 1) {
   tweens.get(selected.mesh).fromS = fromS;
 }
 
+// Mirror the selected (or being-dragged) gadget left-right as it looks on
+// screen, whatever way it's turned: ramps slope the other way, conveyors run
+// the other way. Mirroring a turned piece is the same as mirroring its own
+// shape and turning it the opposite way, so the turn goes to -rot.
+const mirroredRot = (rot) => (4 - (rot || 0)) % 4;
+function flipSelected() {
+  if (drag?.kind === 'new' && GADGETS[drag.type].flippable) {
+    // Swap in a mirrored ghost where the old one was.
+    drag.flip = !drag.flip;
+    drag.rot = mirroredRot(drag.rot);
+    const ghost = GADGETS[drag.type].makeMesh({ flip: drag.flip });
+    eachMesh(ghost, (m) => { m.material = ghostMat; m.castShadow = false; });
+    ghost.visible = drag.ghost.visible;
+    scene.remove(drag.ghost);
+    scene.add(ghost);
+    drag.ghost = ghost;
+    if (drag.cell) {
+      const { position, quaternion } = itemTransform({ type: drag.type, x: drag.cell.ax, y: drag.cell.ay, rot: drag.rot });
+      ghost.position.copy(position);
+      ghost.quaternion.copy(quaternion);
+    }
+    return;
+  }
+  if (!selected || playing || !GADGETS[selected.type].flippable) return;
+  recordEdit();
+  const from = selected.mesh.position.clone();
+  const rot = mirroredRot(selected.rot);
+  moveItem(selected, selected.x, selected.y, rot, !selected.flip); // rebuilds the mesh
+  // Squash through the middle across the screen: along the piece's own x
+  // when it's level, its own y when it's turned a quarter.
+  const fromS = rot % 2 ? new THREE.Vector3(1, -1, 1) : new THREE.Vector3(-1, 1, 1);
+  selected.mesh.scale.copy(fromS);
+  settle(selected, from);
+  tweens.get(selected.mesh).fromS = fromS;
+}
+
 // Turn the selected (or being-dragged) gadget to its next pose.
 // dir = -1 clockwise (Rotate, R), +1 counter-clockwise (Shift+R).
 function rotateSelected(dir = 1) {
@@ -985,13 +1000,10 @@ const btnHome = document.getElementById('btn-home');
 const toast = document.getElementById('toast');
 const itemTools = document.getElementById('item-tools');
 const toolRotate = document.getElementById('tool-rotate');
-const toolGroups = [...itemTools.querySelectorAll('.tool-group')];
-const toolNudge = {
-  left: document.getElementById('tool-nudge-left'), right: document.getElementById('tool-nudge-right'),
-  up: document.getElementById('tool-nudge-up'), down: document.getElementById('tool-nudge-down'),
-};
+// Arrow keys nudge the selected gadget a quarter cell.
 const NUDGE = { left: [-1, 0], right: [1, 0], up: [0, 1], down: [0, -1] };
 const toolSize = document.getElementById('tool-size');
+const toolFlip = document.getElementById('tool-flip');
 const toolDelete = document.getElementById('tool-delete');
 const trayList = document.getElementById('gadget-list');
 
@@ -1023,11 +1035,8 @@ document.getElementById('view-tools').addEventListener('pointerdown', (ev) => ev
 btnUndo.onclick = undo;
 btnRedo.onclick = redo;
 toolRotate.onclick = () => rotateSelected(-1); // clockwise, like its icon
-for (const g of toolGroups) {
-  g.querySelector('.tool-head').onclick = () => { openGroup = openGroup === g.dataset.group ? null : g.dataset.group; };
-}
-for (const [dir, b] of Object.entries(toolNudge)) b.onclick = () => nudgeSelected(...NUDGE[dir]);
 toolSize.onclick = () => resizeSelected(1);
+toolFlip.onclick = flipSelected;
 toolDelete.onclick = () => { if (selected && !playing) { recordEdit(); removeItem(selected); } };
 // Clicks on the floating tools must not reach the board underneath.
 itemTools.addEventListener('pointerdown', (ev) => ev.stopPropagation());
@@ -1058,18 +1067,7 @@ function updateItemTools() {
   // Every action shows on every gadget; ones that don't apply are greyed out.
   toolRotate.disabled = nextRotation(selected, -1) === null;
   toolSize.disabled = nextSize(selected, 1) === null;
-  for (const [dir, b] of Object.entries(toolNudge)) b.disabled = !canNudge(selected, ...NUDGE[dir]);
-  // A group's head is greyed out (and its column closed) when none of its
-  // actions apply.
-  for (const g of toolGroups) {
-    const any = [...g.querySelectorAll('.tool-pop > button')].some((b) => !b.disabled);
-    const name = g.dataset.group;
-    if (openGroup === name && !any) openGroup = null;
-    const head = g.querySelector('.tool-head');
-    head.disabled = !any;
-    g.classList.toggle('open', openGroup === name);
-    head.classList.toggle('on', openGroup === name);
-  }
+  toolFlip.disabled = !GADGETS[selected.type].flippable;
   itemTools.classList.toggle('below', y < 200); // no room above near the top
 }
 btnHome.onclick = homeView;
