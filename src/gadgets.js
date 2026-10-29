@@ -288,24 +288,50 @@ const GADGETS = {
     name: 'Seesaw',
     hint: 'tips',
     w: 3, h: 0.75,
-    // The plank across the top and the fulcrum under its middle; the space
-    // under each end of the plank stays free.
-    footprint: () => [...rectCells(0, 0.5, 3, 0.25), ...rectCells(1, 0, 1, 0.5)],
-    makeMesh() {
+    // Size: 3 wide, 4 wide, then 3 wide with the plank shifted half a cell
+    // left or right of the fulcrum (a size's third value, `off`, is how far
+    // the plank sits right of the fulcrum). The fulcrum stays put.
+    resizable: { sizes: [[1, 1], [4 / 3, 1], [1, 1, -0.5], [1, 1, 0.5]] },
+    // Where the fulcrum's middle sits, from the plank's left end.
+    pivotX: (size) => (3 * (size?.w || 1)) / 2 - (size?.off || 0),
+    // The plank across the top and the fulcrum under it; the space under each
+    // end of the plank stays free.
+    footprint(rot, { w, off }) {
+      const px = w / 2 - off;
+      return [...rectCells(0, 0.5, w, 0.25), ...rectCells(px - 0.5, 0, 1, 0.5)];
+    },
+    makeMesh(item) {
+      const k = item?.size || NORMAL_SIZE;
+      const len = 3 * k.w, off = k.off || 0;
+      // The group's origin is the plank's middle; the fulcrum sits `off` left of it.
       const g = new THREE.Group();
+      g.userData.seesaw = { len, off };
       // Fulcrum: base on the ground, point up at the hinge (local y = 0.5).
-      g.add(named(shadowed(new THREE.Mesh(fulcrumGeometry(1, 0.5, 0.6), standard(0x8a7f6a))), 'base'));
-      g.add(named(shadowed(new THREE.Mesh(new THREE.BoxGeometry(3, 0.25, 0.6), standard(0xf2b134))), 'plank')).children[1].position.y = 0.625;
+      const base = named(shadowed(new THREE.Mesh(fulcrumGeometry(1, 0.5, 0.6), standard(0x8a7f6a))), 'base');
+      base.position.x = -off;
+      g.add(base);
+      // A shifted plank starts tipped, its long end resting on the ground:
+      // the hinge (on the plank's underside, over the fulcrum) is 1/2 up, and
+      // the long end reaches len/2 + |off| from it.
+      const tilt = off ? -Math.sign(off) * Math.asin(0.5 / (len / 2 + Math.abs(off))) : 0;
+      const plank = named(shadowed(new THREE.Mesh(new THREE.BoxGeometry(len, 0.25, 0.6), standard(0xf2b134))), 'plank');
+      // Plank middle = hinge + (off, 1/8) turned by the tilt.
+      const c = Math.cos(tilt), s = Math.sin(tilt);
+      plank.position.set(-off + off * c - 0.125 * s, 0.5 + off * s + 0.125 * c, 0);
+      plank.rotation.z = tilt;
+      g.add(plank);
       return g;
     },
     makeBodies(g) {
+      const { len, off } = g.userData.seesaw;
       const base = new CANNON.Body({ mass: 0, material: MATS.surface });
       base.addShape(new CANNON.Box(new CANNON.Vec3(0.3, 0.25, 0.3)), new CANNON.Vec3(0, 0.25, 0));
-      const plank = lockToPlane(new CANNON.Body({ mass: 0.6, shape: new CANNON.Box(new CANNON.Vec3(1.5, 0.125, 0.3)), material: MATS.surface }));
+      const plank = lockToPlane(new CANNON.Body({ mass: 0.2 * len, shape: new CANNON.Box(new CANNON.Vec3(len / 2, 0.125, 0.3)), material: MATS.surface }));
       plank.angularDamping = 0.2;
+      // The hinge is at the fulcrum's point, `off` left of the plank's middle.
       const hinge = new CANNON.HingeConstraint(base, plank, {
         pivotA: new CANNON.Vec3(0, 0.5, 0), axisA: Z_AXIS,
-        pivotB: new CANNON.Vec3(0, -0.125, 0), axisB: Z_AXIS,
+        pivotB: new CANNON.Vec3(-off, -0.125, 0), axisB: Z_AXIS,
       });
       return {
         parts: [{ body: base, mesh: g.getObjectByName('base') }, { body: plank, mesh: g.getObjectByName('plank') }],
@@ -729,7 +755,7 @@ function footprintCells(type, x, y, rot = 0, size = null) {
   if (def.footprint) {
     const r = def.swing ? 0 : rot;
     const k = sizeOf(type, size);
-    const dims = { w: def.w * k.w, h: def.h * k.h }; // unturned
+    const dims = { w: def.w * k.w, h: def.h * k.h, off: k.off || 0 }; // unturned
     const W = Math.round(dims.w * SUB), H = Math.round(dims.h * SUB);
     // Turn each cell about the box: (i, j) -> after r quarter turns CCW.
     return def.footprint(rot, dims).map(([i, j]) => {

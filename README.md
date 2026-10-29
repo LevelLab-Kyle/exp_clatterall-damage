@@ -21,7 +21,7 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 | Delete | Right-click it, or select + `Delete` |
 | Selected-gadget menu | Floats above the selected gadget: **Rotate** and **Size** buttons, **Move** (slides out a column of nudge buttons), plus 🗑. Every gadget shows every button; ones that don't apply are greyed out |
 | Rotate | The Rotate button or `R` steps clockwise through every way the gadget can turn and wraps around; `Shift+R` steps back. Skips turns that don't fit; works mid-drag too. Most gadgets turn 90° at a time; the pendulum cycles its swing (straight, out left, further left, further right, out right). There is no flip: ramps and conveyors come in two gadgets, one for each direction |
-| Size | The Size button or `S` steps blocks, ramps, dominoes, planks and buckets through a set of sizes and wraps around; `Shift+S` steps back. Blocks go 1×1 → 2×1 → 1×2 → 2×2 → ½×½ → 1×½ → ½×1; ramps go 1×1 → 2×1 → 2×2 → 1×2; dominoes change height only, 1½ → 2 → 1; planks change length only, 3 → 4 → 2; buckets grow to fit the marble → ball → bowling ball. It keeps its bottom-left corner, sliding left and/or down when growing into something, and skips sizes that don't fit |
+| Size | The Size button or `S` steps blocks, ramps, dominoes, planks and buckets through a set of sizes and wraps around; `Shift+S` steps back. Blocks go 1×1 → 2×1 → 1×2 → 2×2 → ½×½ → 1×½ → ½×1; ramps go 1×1 → 2×1 → 2×2 → 1×2; dominoes change height only, 1½ → 2 → 1; planks change length only, 3 → 4 → 2; buckets grow to fit the marble → ball → bowling ball; seesaws go 3 wide → 4 wide → 3 shifted left → 3 shifted right. It keeps its bottom-left corner, sliding left and/or down when growing into something, and skips sizes that don't fit |
 | Nudge | The Move group, or the arrow keys: moves the selected gadget ¼ cell |
 | Pan | Drag empty space or scroll (mouse); two fingers (touch). The view settles onto whole cells and never goes below the ground |
 | Zoom | `Ctrl`/`Cmd` + scroll, or pinch (trackpad or touch screen) |
@@ -46,7 +46,7 @@ The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, 
 | Domino | ¼×1½ (Size: 2 or 1 tall) | Tips over and takes the next one with it |
 | Ramp ↘ / Ramp ↙ | 1×1 (Size cycles it) | Static slope, sloping down to the right or the left. Rotate for all four orientations; Size makes it long (2×1), steep (1×2) or big (2×2) |
 | Block | 1×1 (Size cycles it) | Solid block to build on |
-| Seesaw | 3×¾ | Plank on a hinge. Drop something on one end to fling the other |
+| Seesaw | 3×¾ (Size: 4 wide, or 3 wide shifted half a cell left or right) | Plank on a hinge. Drop something on one end to fling the other. A shifted plank has a long end and a short end and starts tipped with the long end resting on the ground; the fulcrum stays put when you change its size |
 | Bouncer | 1×½ | Springy pad; marbles bounce off it |
 | Fan | 1×1 | Pushes anything up to 3 cells in the direction it faces. Rotate to aim it |
 | Pendulum | 1×3¼ | Heavy ball on a rope. Swings when hit. Rotate swings the ball out (two levels, 1½ and 2 across) left or right to start it off |

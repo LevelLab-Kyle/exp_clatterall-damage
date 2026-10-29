@@ -213,7 +213,7 @@ function restoreRest(obj) {
 
 const cellsOf = (item) => footprintCells(item.type, item.x, item.y, item.rot, item.size);
 
-const sameSize = (a, b) => (a?.w ?? 1) === (b?.w ?? 1) && (a?.h ?? 1) === (b?.h ?? 1);
+const sameSize = (a, b) => (a?.w ?? 1) === (b?.w ?? 1) && (a?.h ?? 1) === (b?.h ?? 1) && (a?.off ?? 0) === (b?.off ?? 0);
 
 // Locked items are a level's own pieces: the player can't move or remove them.
 function addItem(type, x, y, rot = 0, flip = false, size = null, locked = false) {
@@ -868,18 +868,20 @@ function nextSize(item, dir) {
   if (!r) return null;
   // Each size remembers its step in the list, so a size that comes up twice
   // in a cycle still moves on to the right next one.
-  const sizes = r.sizes.map(([w, h], step) => ({ w, h, step }));
+  // A third value is an offset (the seesaw's plank shifted on its fulcrum).
+  const sizes = r.sizes.map(([w, h, off], step) => (off ? { w, h, off, step } : { w, h, step }));
   const was = item.size || NORMAL_SIZE;
-  const same = (z) => z.w === was.w && z.h === was.h;
+  const same = (z) => sameSize(z, was);
   const at = sizes[was.step] && same(sizes[was.step]) ? was.step : sizes.findIndex(same);
   const old = footprintSize(item.type, item.rot, item.size);
   for (let k = 1; k <= sizes.length; k++) {
     const size = sizes[(((at + dir * k) % sizes.length) + sizes.length) % sizes.length];
-    if (size.w === was.w && size.h === was.h) continue;
+    if (sameSize(size, was)) continue;
     const now = footprintSize(item.type, item.rot, size);
     // A bucket grows around its cavity: the cavity's middle and the floor
     // stay put. Everything else grows from its bottom-left corner.
     let bx = 0, by = 0;
+    if (GADGETS[item.type].pivotX) bx = GADGETS[item.type].pivotX(was) - GADGETS[item.type].pivotX(size); // the fulcrum stays put
     if (GADGETS[item.type].cavity) {
       const r = (item.rot || 0) % 4; // floor: bottom, right, top, left
       if (r % 2 === 0) { bx = (old.w - now.w) / 2; if (r === 2) by = old.h - now.h; }
@@ -912,6 +914,20 @@ function resizeSelected(dir = 1) {
   const next = nextSize(selected, dir);
   if (!next) return;
   recordEdit();
+  if (GADGETS[selected.type].pivotX) {
+    // The seesaw's fulcrum doesn't move: only the plank glides (and turns)
+    // from where it was to its new spot.
+    const old = selected.mesh.getObjectByName('plank');
+    const fromW = old.getWorldPosition(new THREE.Vector3()), fromQ = old.getWorldQuaternion(new THREE.Quaternion());
+    moveItem(selected, next.x, next.y, selected.rot, selected.flip, next.size); // rebuilds the mesh
+    selected.mesh.updateMatrixWorld(true);
+    const plank = selected.mesh.getObjectByName('plank');
+    const to = plank.position.clone(), toQ = plank.quaternion.clone();
+    plank.position.copy(selected.mesh.worldToLocal(fromW));
+    plank.quaternion.copy(selected.mesh.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(fromQ));
+    tweens.set(plank, { from: plank.position.clone(), to, t: 0, fromQ: plank.quaternion.clone(), toQ });
+    return;
+  }
   const from = selected.mesh.position.clone();
   const was = selected.size || NORMAL_SIZE;
   moveItem(selected, next.x, next.y, selected.rot, selected.flip, next.size); // rebuilds the mesh
