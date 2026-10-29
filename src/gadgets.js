@@ -645,14 +645,13 @@ const GADGETS = {
   bucket: {
     name: 'Bucket',
     hint: 'catches',
-    // A quarter-thick floor and walls around an open inside, so a bucket
-    // lined up under a ball catches it. Size steps it up for each ball:
-    // inside 1/2 (exactly the marble), 1 1/2 (ball, a quarter to spare each
-    // side), 2 1/2 (bowling ball, likewise). Every bucket is a whole number of
-    // cells wide, so they all sit on half cells.
-    w: 1, h: 0.75,
+    // A quarter-thick floor and walls around an open inside exactly as wide
+    // as a ball, so a bucket lined up under a ball catches it. Size steps it
+    // up for each ball: inside 1/2 (marble), 1 (ball), 2 (bowling ball). The
+    // arms stand half the ball's height above the floor.
+    w: 1, h: 0.5,
     rotatable: true,
-    resizable: { sizes: [[1, 1], [2, 5 / 3], [3, 7 / 3]] },
+    resizable: { sizes: [[1, 1], [1.5, 1.5], [2.5, 2.5]] },
     // Size grows it evenly around its cavity: see nextSize in main.js.
     cavity: true,
     floor: 0.25,

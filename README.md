@@ -50,7 +50,7 @@ The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, 
 | Fan | 1×1 | Pushes anything up to 3 cells in the direction it faces. Rotate to aim it |
 | Pendulum | 1×3¼ | Heavy ball on a rope. Swings when hit. Rotate swings the ball out (two levels, 1½ and 2 across) left or right to start it off |
 | Plank | 3×¼ (Size: 4 or 2 long) | Loose board — bridges gaps, falls when pushed |
-| Bucket | 1×¾ (Size: 2×1¼, 3×1¾) | Catches a ball. Walls and floor are ¼ thick. Its inside is ½ wide by default, exactly the marble, so a bucket lined up under a marble's cell catches it; Size steps it up for the ball (inside 1½) and the bowling ball (inside 2½), growing evenly around its cavity so the cavity stays lined up under the ball. Every size sits on half cells. The inside stays free to drop things into |
+| Bucket | 1×½ (Size: 1½×¾, 2½×1¼) | Catches a ball. Walls and floor are ¼ thick, and the inside is exactly a ball wide: ½ for the marble (the default), then 1 for the ball and 2 for the bowling ball as Size steps it up, with arms half the ball's height, growing evenly around its cavity so the cavity stays lined up under the ball. The inside stays free to drop things into |
 | Conveyor | 2×½ | Carries whatever sits on it, the way the arrow on its front points. Flip it to run the other way; Rotate to turn it |
 | Launcher | 1×½ | Fires whatever is on it shortly after Play, in the direction it faces |
 | Bell | 1×1 | Rings and swings when hit |
