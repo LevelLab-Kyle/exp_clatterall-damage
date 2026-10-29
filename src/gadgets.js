@@ -99,7 +99,7 @@ function lockToPlane(body) {
 // Subgrid: each cell is SUB x SUB quarter cells.
 const SUB = 4;
 
-const MARBLE_R = 0.375; // 3/4 of a cell across
+const MARBLE_R = 0.25; // half a cell across
 // Dominoes are taller than a cell so each one reaches the next when it falls.
 const DOMINO = { w: 0.25, h: 1.5, d: 0.6 };
 // Physics materials. Static surfaces share one so contact rules are simple.
@@ -136,7 +136,10 @@ const GADGETS = {
   marble: {
     name: 'Marble',
     hint: 'rolls',
-    w: 2 * MARBLE_R, h: 2 * MARBLE_R,
+    // It snaps like a whole cell, sitting in the middle of it: only those
+    // 2 x 2 quarter cells are taken, so neighbours can come close.
+    w: 1, h: 1,
+    footprint: () => rectCells(0.5 - MARBLE_R, 0.5 - MARBLE_R, 2 * MARBLE_R, 2 * MARBLE_R),
     dynamic: true,
     makeMesh() {
       return shadowed(new THREE.Mesh(new THREE.SphereGeometry(MARBLE_R, 32, 24), standard(COLORS.marble, { roughness: 0.3 })));
@@ -144,7 +147,22 @@ const GADGETS = {
     makeBody() {
       return lockToPlane(new CANNON.Body({ mass: 1.2, shape: new CANNON.Sphere(MARBLE_R), material: MATS.marble }));
     },
-    offset: () => new THREE.Vector3(MARBLE_R, MARBLE_R, 0),
+    offset: () => new THREE.Vector3(0.5, 0.5, 0),
+  },
+
+  // Between the marble and the bowling ball: a whole cell across, middling weight.
+  ball: {
+    name: 'Ball',
+    hint: 'medium',
+    w: 1, h: 1,
+    dynamic: true,
+    makeMesh() {
+      return shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 24), standard(0xe8553d, { roughness: 0.35 })));
+    },
+    makeBody() {
+      return lockToPlane(new CANNON.Body({ mass: 3, shape: new CANNON.Sphere(0.5), material: MATS.marble }));
+    },
+    offset: () => new THREE.Vector3(0.5, 0.5, 0),
   },
 
   domino: {
@@ -163,40 +181,38 @@ const GADGETS = {
     offset: () => new THREE.Vector3(DOMINO.w / 2, DOMINO.h / 2, 0),
   },
 
+  // Ramps come in two gadgets, one sloping each way (see the mirrored
+  // copies after GADGETS): a stretched or 2x1 wedge's mirror image isn't one
+  // of its own rotations.
   ramp: {
-    name: 'Ramp',
+    name: 'Ramp ↘',
     hint: 'grows',
     w: 1, h: 1,
     rotatable: true,
     resizable: { min: 0.25, max: 4 },
-    // Once it's stretched, a wedge's mirror image isn't one of its own
-    // rotations any more, so flips carry a mirror flag (like the long ramp).
-    flipH: (item) => ({ flip: !item.flip }),
-    flipV: (item) => ({ flip: !item.flip, rot: ((item.rot || 0) + 2) % 4 }),
+    mirror: false,
     makeMesh(item) {
       const s = item?.size || NORMAL_SIZE;
-      return shadowed(new THREE.Mesh(wedgeGeometry(s.w, s.h, 1, !!item?.flip), standard(COLORS.ramp)));
+      return shadowed(new THREE.Mesh(wedgeGeometry(s.w, s.h, 1, this.mirror), standard(COLORS.ramp)));
     },
     makeBody(item) {
       const s = item?.size || NORMAL_SIZE;
-      return new CANNON.Body({ mass: 0, shape: wedgeShape(s.w, s.h, 1, !!item?.flip), material: MATS.surface });
+      return new CANNON.Body({ mass: 0, shape: wedgeShape(s.w, s.h, 1, this.mirror), material: MATS.surface });
     },
     offset: () => new THREE.Vector3(0.5, 0.5, 0),
   },
 
   longramp: {
-    name: 'Long ramp',
+    name: 'Long ramp ↘',
     hint: 'rotates',
     w: 2, h: 1,
     rotatable: true,
-    // A 2x1 wedge mirrored is a genuinely new shape, so it carries a mirror flag.
-    flipH: (item) => ({ flip: !item.flip }),
-    flipV: (item) => ({ flip: !item.flip, rot: ((item.rot || 0) + 2) % 4 }),
-    makeMesh(item) {
-      return shadowed(new THREE.Mesh(wedgeGeometry(2, 1, 1, !!item?.flip), standard(COLORS.ramp)));
+    mirror: false,
+    makeMesh() {
+      return shadowed(new THREE.Mesh(wedgeGeometry(2, 1, 1, this.mirror), standard(COLORS.ramp)));
     },
-    makeBody(item) {
-      return new CANNON.Body({ mass: 0, shape: wedgeShape(2, 1, 1, !!item?.flip), material: MATS.surface });
+    makeBody() {
+      return new CANNON.Body({ mass: 0, shape: wedgeShape(2, 1, 1, this.mirror), material: MATS.surface });
     },
     offset: () => new THREE.Vector3(1, 0.5, 0),
   },
@@ -262,7 +278,6 @@ const GADGETS = {
     hint: 'boing!',
     w: 1, h: 0.5,
     rotatable: true,
-    flipV: (item) => ({ rot: ((item.rot || 0) + 2) % 4 }),
     makeMesh() {
       const g = new THREE.Group();
       g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(1, 0.25, 1), standard(0x6b5b95))).translateY(0.125));
@@ -314,8 +329,6 @@ const GADGETS = {
     w: 1, h: 1,
     rotatable: true,
     push: 3.5, // reach in cells
-    flipH: (item) => ((item.rot || 0) % 2 === 0 ? { rot: ((item.rot || 0) + 2) % 4 } : null),
-    flipV: (item) => ((item.rot || 0) % 2 === 1 ? { rot: ((item.rot || 0) + 2) % 4 } : null),
     makeMesh() {
       const g = new THREE.Group();
       g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(0.5, 1, 0.5), standard(0x5a6b7a))).translateY(0.5));
@@ -374,7 +387,8 @@ const GADGETS = {
     // rest at 3-4-5 triangle points where its box lands exactly on the
     // subgrid: straight down, 1.5 across / 2 down, or 2 across / 1.5 down.
     rotatable: true,
-    flipH: (item) => (item.rot ? { rot: -item.rot } : null),
+    // Rotate steps the ball through the swing levels and wraps around.
+    poses: [0, 1, 2, -2, -1].map((rot) => ({ rot, flip: false })),
     pivotY: 3, // the rope hangs from the bottom of the bar (bar: y 3..3.25)
     rope: 2.5,
     reach: [0, 1.5, 2], // how far across the ball sits at each swing level
@@ -382,10 +396,11 @@ const GADGETS = {
     swing: { min: -2, max: 2 },
     idleFrame: true, // keep the rope drawn while editing
     ballRest(rot = 0) {
-      // ↺ (positive rot) swings the ball to the left, ↻ to the right.
+      // ↺ (positive rot) swings the ball out to the right, ↻ to the left,
+      // the way a hanging ball moves when its bar turns that way.
       const across = this.reach[Math.abs(rot)];
       const down = Math.sqrt(this.rope * this.rope - across * across);
-      return new THREE.Vector3(-Math.sign(rot) * across, this.pivotY - down, 0);
+      return new THREE.Vector3(Math.sign(rot) * across, this.pivotY - down, 0);
     },
     // Only the bar and the ball take up space (the rope doesn't), so the
     // footprint moves with the swing level: swinging the ball out can change
@@ -435,19 +450,25 @@ const GADGETS = {
     offset: () => new THREE.Vector3(0.5, 0, 0),
   },
 
+  // Two gadgets, one running each way (Conveyor ← is the mirrored copy
+  // after GADGETS). An arrow on the front face shows the belt direction.
   conveyor: {
-    name: 'Conveyor',
+    name: 'Conveyor →',
     hint: 'carries',
     w: 2, h: 0.5,
     rotatable: true,
-    // Flipping reverses the belt (a `flip` flag). Turning it to rot 2 would
-    // put the belt underneath, where it carries nothing that sits on top.
-    flipH: (item) => ((item.rot || 0) % 2 === 0 ? { flip: !item.flip } : null),
-    flipV: (item) => ((item.rot || 0) % 2 === 1 ? { flip: !item.flip } : null),
+    mirror: false,
     speed: 3,
     makeMesh() {
       const g = new THREE.Group();
       g.add(shadowed(new THREE.Mesh(new THREE.BoxGeometry(2, 0.375, 0.8), standard(0x3d3d46))).translateY(0.1875));
+      const arrow = new THREE.Shape();
+      const s = this.mirror ? -1 : 1;
+      [[-0.45, 0.05], [0.2, 0.05], [0.2, 0.11], [0.45, 0], [0.2, -0.11], [0.2, -0.05], [-0.45, -0.05]]
+        .forEach(([x, y], i) => (i ? arrow.lineTo(x * s, y) : arrow.moveTo(x * s, y)));
+      const face = new THREE.Mesh(new THREE.ShapeGeometry(arrow), standard(0xffe08a, { roughness: 0.5 }));
+      face.position.set(0, 0.1875, 0.401); // on the front face, facing the camera
+      g.add(face);
       // Rollers along the top spin to show the direction. They sit half sunk
       // in the base and stop just short of its front and back faces.
       for (let i = 0; i < 5; i++) {
@@ -466,7 +487,7 @@ const GADGETS = {
     onStep(item, world) {
       // Anything resting just above the belt gets pulled toward the belt speed.
       const f = facing(item);
-      const dir = item.flip ? -1 : 1;
+      const dir = this.mirror ? -1 : 1;
       const cx = item.x + (footprintSize(item.type, item.rot).w) / 2;
       const cy = item.y + (footprintSize(item.type, item.rot).h) / 2;
       // Local frame: along = belt direction, up = away from the belt surface.
@@ -485,7 +506,7 @@ const GADGETS = {
       // A true rolling speed (speed / radius, ~27 rad/s) moves the roller's
       // edge lines almost one 30° segment per frame, which the eye reads as
       // spinning backwards. A slower spin reads correctly.
-      const spin = dt * ROLLER_SPIN * (item.flip ? -1 : 1);
+      const spin = dt * ROLLER_SPIN * (this.mirror ? -1 : 1);
       item.mesh.traverse((o) => { if (o.name === 'roller') o.rotation.y -= spin; });
     },
     offset: () => new THREE.Vector3(1, 0, 0),
@@ -633,7 +654,12 @@ GADGETS.pendulum.makeMesh = function () {
   return g;
 };
 
-const GADGET_ORDER = ['marble', 'bowling', 'domino', 'plank', 'ramp', 'longramp', 'block', 'bucket', 'seesaw', 'bouncer', 'conveyor', 'launcher', 'fan', 'pendulum', 'bell', 'star'];
+// Mirrored ramps: the same pieces sloping down to the left.
+GADGETS.rampL = { ...GADGETS.ramp, name: 'Ramp ↙', mirror: true };
+GADGETS.longrampL = { ...GADGETS.longramp, name: 'Long ramp ↙', mirror: true };
+GADGETS.conveyorL = { ...GADGETS.conveyor, name: 'Conveyor ←', mirror: true };
+
+const GADGET_ORDER = ['marble', 'ball', 'bowling', 'domino', 'plank', 'ramp', 'rampL', 'longramp', 'longrampL', 'block', 'bucket', 'seesaw', 'bouncer', 'conveyor', 'conveyorL', 'launcher', 'fan', 'pendulum', 'bell', 'star'];
 
 // A resizable gadget's `size` scales its normal width and height separately
 // ({ w, h }); null means its normal size.

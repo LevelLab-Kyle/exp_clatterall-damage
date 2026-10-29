@@ -19,9 +19,8 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 | More gadgets | Cards cut off at the tray edge fade out; the ‹ / › arrows (or a scroll/swipe over the tray) slide the next set into view |
 | Move a gadget | Drag it. The selected gadget gets a blue outline, same as the platform builder |
 | Delete | Right-click it, or select + `Delete` |
-| Selected-gadget menu | Floats above the selected gadget: **Rotate** (↺ ↻ ⇔ ⇕), **Size** and **Move** each slide out a column of buttons (one open at a time), plus 🗑. Every gadget shows every button; ones that don't apply are greyed out |
-| Rotate | ↺ / ↻ in the Rotate group, or `R` (counter-clockwise) / `Shift+R` (clockwise). Turns 90° at a time; works mid-drag too. Ramps get all four orientations; the fan blows in the direction it faces. |
-| Flip | ⇔ / ⇕ in the Rotate group, or `F` (left-right) / `Shift+F` (up-down). Only shown where it changes something: ramps, the fan (reverses its direction), the pendulum (mirrors the swing), the bouncer (upside-down). |
+| Selected-gadget menu | Floats above the selected gadget: a **Rotate** button, **Size** and **Move** (each slides out a column of buttons, one open at a time), plus 🗑. Every gadget shows every button; ones that don't apply are greyed out |
+| Rotate | The Rotate button or `R` steps clockwise through every way the gadget can turn and wraps around; `Shift+R` steps back. Skips turns that don't fit; works mid-drag too. Most gadgets turn 90° at a time; the pendulum cycles its swing (straight, out left, further left, further right, out right). There is no flip: ramps and conveyors come in two gadgets, one for each direction |
 | Grow / Shrink | The Size group on blocks and ramps: narrower / wider and shorter / taller, ¼ at a time (from ¼ up to 4 each way). It keeps its bottom-left corner, sliding left or down a quarter if something is in the way |
 | Nudge | The Move group, or the arrow keys: moves the selected gadget ¼ cell |
 | Pan | Drag empty space or scroll (mouse); two fingers (touch). The view settles onto whole cells and never goes below the ground |
@@ -40,10 +39,11 @@ The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, 
 
 | Gadget | Size | What it does |
 |---|---|---|
-| Marble | ¾×¾ | Rolls and falls |
+| Marble | ½×½ | Rolls and falls. Snaps to the center of a cell (settling onto a ledge when dropped just above one) |
+| Ball | 1×1 | Between the marble and the bowling ball in size and weight |
 | Bowling ball | 2×2 | Heavy. Knocks big things over |
 | Domino | ¼×1½ | Tips over and takes the next one with it |
-| Ramp / Long ramp | 1×1 (¼ to 4 each way) / 2×1 | Static slope. Rotate for all four orientations; grow / shrink the ramp's width and height to set its steepness |
+| Ramp ↘ / Ramp ↙, Long ramp ↘ / Long ramp ↙ | 1×1 (¼ to 4 each way) / 2×1 | Static slope, sloping down to the right or the left. Rotate for all four orientations; grow / shrink the ramp's width and height to set its steepness |
 | Block | 1×1 (¼ to 4) | Solid block to build on. Grow / shrink it in ¼ steps |
 | Seesaw | 3×¾ | Plank on a hinge. Drop something on one end to fling the other |
 | Bouncer | 1×½ | Springy pad; marbles bounce off it |
@@ -51,7 +51,7 @@ The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, 
 | Pendulum | 1×3¼ | Heavy ball on a rope. Swings when hit. Rotate swings the ball out (two levels, 1½ and 2 across) left or right to start it off |
 | Plank | 3×¼ | Loose board — bridges gaps, falls when pushed |
 | Bucket | 1½×1 | Catches a marble (the bowling ball won't fit); the inside stays free to drop things into |
-| Conveyor | 2×½ | Carries whatever sits on it. Rotate / flip to set the direction |
+| Conveyor → / Conveyor ← | 2×½ | Carries whatever sits on it, the way the arrow on its front points. Rotate to turn it |
 | Launcher | 1×½ | Fires whatever is on it shortly after Play, in the direction it faces |
 | Bell | 1×1 | Rings and swings when hit |
 | Star | 1×1 | The goal |

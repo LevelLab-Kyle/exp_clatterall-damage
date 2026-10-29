@@ -142,12 +142,14 @@ function canPlace(type, x, y, rot = 0, ignoreId = null, size = null) {
 // un-snapped position, so it slides toward whichever side it was closer to.
 // Spots are on the subgrid, up to 8 cells away.
 const snapSub = (v) => Math.round(v * SUB) / SUB;
-// Drops land on whole cells; only when no whole cell nearby is free do they
-// fall back to quarter steps, so a drop always lands somewhere. A piece that
-// would float just above a ledge (less than a cell up) settles onto it.
+// Drops land on half cells (DROP_STEPS per cell); only when no such spot
+// nearby is free do they fall back to quarter steps, so a drop always lands
+// somewhere. A piece that would float just above a ledge (less than a cell
+// up) settles onto it.
+const DROP_STEPS = 2;
 function nearestFree(type, ax, ay, rot = 0, ignoreId = null, size = null) {
-  const whole = nearestFreeStep(type, ax, ay, rot, ignoreId, size, 1);
-  if (whole) return settleDown(type, whole, rot, ignoreId, size);
+  const snapped = nearestFreeStep(type, ax, ay, rot, ignoreId, size, DROP_STEPS);
+  if (snapped) return settleDown(type, snapped, rot, ignoreId, size);
   return nearestFreeStep(type, ax, ay, rot, ignoreId, size, SUB);
 }
 
@@ -295,6 +297,13 @@ function recordEdit() {
   updateHistoryButtons();
 }
 
+// Older saves mark a left-sloping ramp or left-running conveyor with flip;
+// those are their own gadgets now.
+function upgradeEntry(s) {
+  if (['ramp', 'longramp', 'conveyor'].includes(s.type) && s.flip) return { ...s, type: s.type + 'L', flip: false };
+  return s;
+}
+
 function restore(snap) {
   finishTweens();
   clearBoard();
@@ -364,7 +373,7 @@ function loadProgress() {
   try { data = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch { return false; }
   if (!data || !Array.isArray(data.items)) return false;
   clearBoard();
-  for (const s of data.items) {
+  for (const s of data.items.map(upgradeEntry)) {
     if (GADGETS[s.type] && canPlace(s.type, s.x, s.y, s.rot || 0, null, s.size || null)) addItem(s.type, s.x, s.y, s.rot || 0, !!s.flip, s.size || null);
   }
   if (data.view) { view.cx = data.view.cx; view.cy = data.view.cy; view.zoom = data.view.zoom; }
@@ -535,7 +544,8 @@ function dragTarget(ev, size, grab) {
   if (!p) return null;
   const ax = grab ? p.x + grab.x : p.x - size.w / 2;
   const ay = grab ? p.y + grab.y : p.y - size.h / 2;
-  return { ax, ay, x: Math.round(ax), y: Math.round(ay) }; // drops snap to whole cells
+  const snap = (v) => Math.round(v * DROP_STEPS) / DROP_STEPS; // drops snap to half cells
+  return { ax, ay, x: snap(ax), y: snap(ay) };
 }
 
 // Short ease-out animation into place: slide (and turn, if the rotation
@@ -571,49 +581,8 @@ function updateTweens(dt) {
 function finishTweens() {
   for (const [mesh, tw] of tweens) { mesh.position.copy(tw.to); mesh.quaternion.copy(tw.toQ); mesh.scale.copy(ONE); }
   tweens.clear();
-  for (const anim of mirrorAnims) endMirrorAnim(anim);
-  mirrorAnims.length = 0;
 }
 
-// A flip shown as a mirror: a stand-in copy of the piece squashes through
-// its center along the flipped axis and comes out reversed, while the real
-// (already flipped) piece stays hidden until it's done.
-const mirrorAnims = []; // { item, stand, axis, t }
-let openGroup = null; // which tool group's column is slid out (see updateItemTools)
-const MIRROR_SECONDS = 0.22;
-
-function startMirrorAnim(item, axis, before, center) {
-  const stand = new THREE.Group();
-  stand.position.copy(center);
-  const copy = before.mesh;
-  copy.position.copy(before.position).sub(center);
-  copy.quaternion.copy(before.quaternion);
-  stand.add(copy);
-  scene.add(stand);
-  item.mesh.visible = false;
-  if (selected === item) outlinePass.selectedObjects = [stand];
-  mirrorAnims.push({ item, stand, axis, t: 0 });
-}
-
-function endMirrorAnim(anim) {
-  scene.remove(anim.stand);
-  anim.item.mesh.visible = true;
-  if (selected === anim.item) outlinePass.selectedObjects = [anim.item.mesh];
-}
-
-function updateMirrorAnims(dt) {
-  for (let i = mirrorAnims.length - 1; i >= 0; i--) {
-    const anim = mirrorAnims[i];
-    anim.t = Math.min(1, anim.t + dt / MIRROR_SECONDS);
-    // Scale from 1 through 0 to -1 along the flipped world axis.
-    const s = Math.cos(anim.t * Math.PI);
-    if (anim.axis === 'h') anim.stand.scale.x = s; else anim.stand.scale.y = s;
-    if (anim.t >= 1) { endMirrorAnim(anim); mirrorAnims.splice(i, 1); }
-  }
-}
-
-// The gadget under the pointer that the player may edit (never a level's
-// locked pieces), or null.
 function pickItem(ev) {
   const item = pickAnyItem(ev);
   return item && !item.locked ? item : null;
@@ -647,7 +616,7 @@ function beginNewDrag(type, ev) {
   eachMesh(ghost, (m) => { m.material = ghostMat; m.castShadow = false; });
   ghost.visible = false;
   scene.add(ghost);
-  drag = { kind: 'new', type, ghost, rot: 0, cell: null };
+  drag = { kind: 'new', type, ghost, rot: 0, flip: false, cell: null };
   try { ev.target.setPointerCapture(ev.pointerId); } catch {}
   updateDrag(ev);
 }
@@ -702,7 +671,7 @@ function endDrag(ev) {
     const spot = d.cell && nearestFree(d.type, d.cell.ax, d.cell.ay, d.rot);
     if (spot) {
       recordEdit();
-      const item = addItem(d.type, spot.x, spot.y, d.rot);
+      const item = addItem(d.type, spot.x, spot.y, d.rot, d.flip);
       settle(item, d.ghost.position);
       select(item);
     }
@@ -845,8 +814,7 @@ canvas.addEventListener('wheel', (ev) => {
 }, { passive: false });
 
 window.addEventListener('keydown', (ev) => {
-  if (ev.key === 'r' || ev.key === 'R') rotateSelected(ev.shiftKey ? -1 : 1);
-  if (ev.key === 'f' || ev.key === 'F') flipSelected(ev.shiftKey ? 'v' : 'h');
+  if (ev.key === 'r' || ev.key === 'R') rotateSelected(ev.shiftKey ? 1 : -1); // clockwise; Shift goes back
   const arrow = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[ev.key];
   if (arrow && selected) { ev.preventDefault(); nudgeSelected(...NUDGE[arrow]); }
   if (ev.key === 'h' || ev.key === 'H') homeView();
@@ -860,17 +828,27 @@ window.addEventListener('keydown', (ev) => {
   if (ev.key === ' ') { ev.preventDefault(); if (playing) stopPlay(); else { audioArmed = true; startPlay(); } }
 });
 
-// The rotation `item` would end up with after a step in `dir`, or null if it
-// can't rotate that way (not rotatable, at the swing limit, or the turned
-// footprint doesn't fit).
+// Every way a gadget can be turned, in Rotate order, as { rot, flip }. A
+// gadget can list its own (the pendulum's swing levels); otherwise it's the
+// four quarter turns. flip null keeps it.
+function posesOf(type) {
+  const def = GADGETS[type];
+  if (!def.rotatable) return [];
+  return def.poses || [0, 1, 2, 3].map((rot) => ({ rot, flip: null }));
+}
+
+// The pose `item` turns to on its next step in `dir` (-1 clockwise, +1
+// counter-clockwise), wrapping around and skipping turns that don't fit.
+// Null if none do.
 function nextRotation(item, dir) {
-  const def = GADGETS[item.type];
-  if (!def.rotatable) return null;
-  const rot = def.swing
-    ? THREE.MathUtils.clamp((item.rot || 0) + dir, def.swing.min, def.swing.max)
-    : ((item.rot || 0) + dir + 4) % 4;
-  if (rot === (item.rot || 0)) return null;
-  return turnedAnchor(item, rot) ? rot : null;
+  const poses = posesOf(item.type);
+  const at = poses.findIndex((p) => p.rot === (item.rot || 0) && (p.flip === null || p.flip === !!item.flip));
+  for (let k = 1; k < poses.length; k++) {
+    const p = poses[(((at + dir * k) % poses.length) + poses.length) % poses.length];
+    const pose = { rot: p.rot, flip: p.flip === null ? !!item.flip : p.flip };
+    if (turnedAnchor(item, pose.rot)) return pose;
+  }
+  return null;
 }
 
 // Where `item` sits after turning to `rot`, or null if it doesn't fit.
@@ -887,20 +865,6 @@ function turnedAnchor(item, rot) {
   }
   spots.push({ x: item.x, y: item.y });
   return spots.find((at) => canPlace(item.type, at.x, at.y, rot, item.id, item.size)) || null;
-}
-
-// What flipping `item` across the vertical ('h') or horizontal ('v') axis
-// would give, as { rot, flip }, or null when the gadget is symmetric that
-// way or the result wouldn't fit.
-function nextFlip(item, axis) {
-  const def = GADGETS[item.type];
-  const fn = axis === 'h' ? def.flipH : def.flipV;
-  if (!fn) return null;
-  const change = fn(item);
-  if (!change) return null;
-  const next = { rot: change.rot ?? (item.rot || 0), flip: change.flip ?? !!item.flip };
-  if (next.rot === (item.rot || 0) && next.flip === !!item.flip) return null;
-  return canPlace(item.type, item.x, item.y, next.rot, item.id, item.size) ? next : null;
 }
 
 // Where a resizable `item` ends up one quarter step wider or narrower
@@ -956,43 +920,27 @@ function resizeSelected(axis, dir) {
   tweens.get(selected.mesh).fromS = fromS;
 }
 
-function flipSelected(axis) {
-  if (!selected || playing) return;
-  const next = nextFlip(selected, axis);
-  if (!next) return;
-  recordEdit();
-  // Every flip is shown as a mirror about the piece's footprint center: a
-  // copy of the piece as it was shrinks through that center along the
-  // flipped axis and expands out reversed.
-  const { w, h } = footprintSize(selected.type, selected.rot, selected.size);
-  const center = new THREE.Vector3(selected.x + w / 2, selected.y + h / 2, 0);
-  const before = { mesh: selected.mesh.clone(), position: selected.mesh.position.clone(), quaternion: selected.mesh.quaternion.clone() };
-  moveItem(selected, selected.x, selected.y, next.rot, next.flip);
-  startMirrorAnim(selected, axis, before, center);
-}
-
-// Turn the selected (or being-dragged) gadget a quarter turn.
-// dir = +1 counter-clockwise, -1 clockwise.
+// Turn the selected (or being-dragged) gadget to its next pose.
+// dir = -1 clockwise (Rotate, R), +1 counter-clockwise (Shift+R).
 function rotateSelected(dir = 1) {
   if (drag?.kind === 'new' && GADGETS[drag.type].rotatable) {
-    const def = GADGETS[drag.type];
-    if (def.swing) {
-      drag.rot = THREE.MathUtils.clamp(drag.rot + dir, def.swing.min, def.swing.max);
-      def.applyRot({ mesh: drag.ghost, rot: drag.rot });
-    } else {
-      drag.rot = (drag.rot + dir + 4) % 4;
-    }
+    const poses = posesOf(drag.type);
+    const at = poses.findIndex((p) => p.rot === drag.rot && (p.flip === null || p.flip === drag.flip));
+    const p = poses[(((at + dir) % poses.length) + poses.length) % poses.length];
+    drag.rot = p.rot;
+    if (p.flip !== null) drag.flip = p.flip;
+    GADGETS[drag.type].applyRot?.({ mesh: drag.ghost, rot: drag.rot });
     return;
   }
   if (!selected || playing) return;
   const def = GADGETS[selected.type];
-  const rot = nextRotation(selected, dir);
-  if (rot === null) return;
+  const pose = nextRotation(selected, dir);
+  if (!pose) return;
+  recordEdit();
   if (def.swing) {
-    recordEdit();
     const ball = selected.mesh.getObjectByName('ball');
     const from = ball.position.clone();
-    moveItem(selected, selected.x, selected.y, rot); // updates occupancy, puts the ball at its new rest
+    moveItem(selected, selected.x, selected.y, pose.rot); // updates occupancy, puts the ball at its new rest
     const to = ball.position.clone();
     ball.position.copy(from);
     tweens.set(ball, { from, to, t: 0, fromQ: null, toQ: ball.quaternion.clone() });
@@ -1000,9 +948,8 @@ function rotateSelected(dir = 1) {
   }
   const from = selected.mesh.position.clone();
   const fromQ = selected.mesh.quaternion.clone();
-  recordEdit();
-  const at = turnedAnchor(selected, rot);
-  moveItem(selected, at.x, at.y, rot);
+  const at = turnedAnchor(selected, pose.rot);
+  moveItem(selected, at.x, at.y, pose.rot, pose.flip);
   settle(selected, from, fromQ); // turns and slides into the cell together
 }
 
@@ -1018,10 +965,7 @@ const btnRedo = document.getElementById('btn-redo');
 const btnHome = document.getElementById('btn-home');
 const toast = document.getElementById('toast');
 const itemTools = document.getElementById('item-tools');
-const toolRotateCcw = document.getElementById('tool-rotate-ccw');
-const toolRotateCw = document.getElementById('tool-rotate-cw');
-const toolFlipH = document.getElementById('tool-flip-h');
-const toolFlipV = document.getElementById('tool-flip-v');
+const toolRotate = document.getElementById('tool-rotate');
 const toolGroups = [...itemTools.querySelectorAll('.tool-group')];
 const toolNudge = {
   left: document.getElementById('tool-nudge-left'), right: document.getElementById('tool-nudge-right'),
@@ -1049,10 +993,7 @@ btnClear.onclick = () => {
 };
 btnUndo.onclick = undo;
 btnRedo.onclick = redo;
-toolRotateCcw.onclick = () => rotateSelected(1);
-toolRotateCw.onclick = () => rotateSelected(-1);
-toolFlipH.onclick = () => flipSelected('h');
-toolFlipV.onclick = () => flipSelected('v');
+toolRotate.onclick = () => rotateSelected(-1); // clockwise, like its icon
 for (const g of toolGroups) {
   g.querySelector('.tool-head').onclick = () => { openGroup = openGroup === g.dataset.group ? null : g.dataset.group; };
 }
@@ -1087,10 +1028,7 @@ function updateItemTools() {
   const y = THREE.MathUtils.clamp(minY - 10, 56, h);
   itemTools.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
   // Every action shows on every gadget; ones that don't apply are greyed out.
-  toolRotateCcw.disabled = nextRotation(selected, 1) === null;
-  toolRotateCw.disabled = nextRotation(selected, -1) === null;
-  toolFlipH.disabled = nextFlip(selected, 'h') === null;
-  toolFlipV.disabled = nextFlip(selected, 'v') === null;
+  toolRotate.disabled = nextRotation(selected, -1) === null;
   toolWider.disabled = nextSize(selected, 'w', 1) === null;
   toolNarrower.disabled = nextSize(selected, 'w', -1) === null;
   toolTaller.disabled = nextSize(selected, 'h', 1) === null;
@@ -1337,7 +1275,7 @@ function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(clock.getDelta(), 0.05);
 
-  if (playing) stepPhysics(dt); else { updateTweens(dt); updateMirrorAnims(dt); }
+  if (playing) stepPhysics(dt); else updateTweens(dt);
   updateViewSnap(dt);
   updateCamera(); // also clamps the view above the ground
 
@@ -1400,7 +1338,7 @@ function loadExample(name) {
   if (playing) stopPlay();
   if (items.size) recordEdit();
   clearBoard();
-  for (const [type, x, y, rot, flip] of ex.items) addItem(type, x, y, rot || 0, !!flip);
+  for (const [type, x, y, rot, flip, size] of ex.items) addItem(type, x, y, rot || 0, !!flip, size || null);
   // Center the view on the contraption.
   homeView();
   examplesSelect.value = name;
@@ -1423,7 +1361,7 @@ function loadLevel(n) {
   const level = LEVELS[n];
   clearBoard();
   for (const [type, x, y, rot, flip, size] of level.items) addItem(type, x, y, rot || 0, !!flip, size || null, true);
-  for (const s of levelBoards[level.name] || []) {
+  for (const s of (levelBoards[level.name] || []).map(upgradeEntry)) {
     if (GADGETS[s.type] && partsLeft(s.type) > 0 && canPlace(s.type, s.x, s.y, s.rot || 0, null, s.size || null)) {
       addItem(s.type, s.x, s.y, s.rot || 0, !!s.flip, s.size || null);
     }

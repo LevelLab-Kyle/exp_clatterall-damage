@@ -8,7 +8,7 @@
 //   LEVELS_FILE=draft.js node tools/check-levels.cjs   check a draft file of levels
 //
 // A level passes when its solution reaches the star, its locked pieces
-// alone don't, and each part of the solution is somewhere a tray drop can
+// alone don't, leaving out any one part misses, and each part of the solution is somewhere a tray drop can
 // actually put it (drops land on whole cells when one is free nearby).
 // An example passes when it reaches the star.
 const vm = require('vm');
@@ -56,14 +56,15 @@ function overlaps(list) {
 }
 
 // Where the game puts a part dropped with its corner at (ax, ay): the
-// nearest free whole cell (settling onto a ledge less than a cell below), or
-// the nearest free quarter cell if no whole cell within 8 is free. Same rule
+// nearest free half cell (settling onto a ledge less than a cell below), or
+// the nearest free quarter cell if no half cell within 8 is free. Same rule
 // as nearestFree in src/main.js.
+const DROP_STEPS = 2;
 function dropSpot(list, type, ax, ay, rot, size) {
   const taken = new Set();
   for (const [t, x, y, r = 0, , s = null] of list) for (const [i, j] of footprintCells(t, x, y, r, s)) taken.add(i + ',' + j);
   const fits = (x, y) => footprintCells(type, x, y, rot, size).every(([i, j]) => j >= 0 && !taken.has(i + ',' + j));
-  for (const sub of [1, SUB]) {
+  for (const sub of [DROP_STEPS, SUB]) {
     const snap = (v) => Math.round(v * sub) / sub;
     const x0 = snap(ax), y0 = Math.max(0, snap(ay));
     const spots = [];
@@ -78,7 +79,7 @@ function dropSpot(list, type, ax, ay, rot, size) {
     }
     spots.sort((a, b) => a.d - b.d);
     const hit = spots.find((p) => fits(p.x, p.y));
-    if (hit && sub === 1) return settleDown(hit);
+    if (hit && sub === DROP_STEPS) return settleDown(hit);
     if (hit) return hit;
   }
   return null;
@@ -140,6 +141,13 @@ LEVELS.forEach((lv, n) => {
   if (!bad && t === null) problems.push('solution misses the star');
   const free = play(lv.items, traceFree);
   if (free !== null) problems.push(`wins with no parts placed (${free}s)`);
+  // Every part of the solution is needed: leave any one out and it misses
+  // (unless the level says it has spares).
+  if (t !== null && !lv.spares) {
+    lv.solution.forEach((part, k) => {
+      if (play([...lv.items, ...lv.solution.filter((_, j) => j !== k)]) !== null) problems.push(`wins without the ${part[0]} at ${part[1]},${part[2]}`);
+    });
+  }
   // A part dropped from the tray onto its answer spot must land exactly
   // there (see dropSpot), so the player can build the answer by dragging.
   lv.solution.forEach((part, k) => {

@@ -1,5 +1,5 @@
-// Ready-made contraptions. Each entry is [type, x, y, rot, flip]; x and y are on
-// the quarter-cell subgrid.
+// Ready-made contraptions. Each entry is [type, x, y, rot, flip, size]; x and y
+// are on the quarter-cell subgrid.
 // All of them reach the star when played.
 
 const EXAMPLES = {
@@ -27,7 +27,7 @@ const EXAMPLES = {
   'Fan Elevator': {
     blurb: 'One fan rolls the marble up a ramp, a second lifts it, a third blows it across to the star.',
     items: [
-      ['fan', 0, 0, 0], ['marble', 2, 0],
+      ['fan', 0, 0, 0], ['marble', 1, 1],
       ['ramp', 4, 0, 1], ['fan', 5, 0, 1],
       ['fan', 4, 4, 0],
       ['block', 12, 0], ['block', 12, 1], ['block', 12, 2], ['block', 12, 3], ['block', 12, 4],
@@ -54,9 +54,9 @@ const EXAMPLES = {
       ['block', 0, 0], ['block', 0, 1], ['block', 0, 2], ['block', 0, 3],
       ['block', 1, 0], ['block', 1, 1], ['block', 1, 2], ['block', 1, 3],
       ['block', 2, 0], ['block', 2, 1], ['block', 2, 2], ['block', 2, 3],
-      ['longramp', 1, 4], ['marble', 1, 5],
-      ['bouncer', 5, 0], ['bouncer', 10, 0], ['bouncer', 16, 0],
-      ['star', 12.5, 4],
+      ['longramp', 1, 4], ['marble', 1, 4.75],
+      ['bouncer', 5, 0], ['bouncer', 9, 0], ['bouncer', 14, 0],
+      ['star', 11, 3],
     ],
   },
 
@@ -64,7 +64,7 @@ const EXAMPLES = {
     blurb: 'A launcher shoots the marble off a ledge onto a conveyor, which drops it into a bucket with the star.',
     items: [
       ['block', 1, 0], ['block', 1, 1], ['block', 2, 0], ['block', 2, 1],
-      ['launcher', 1, 2, 3], ['marble', 2, 2],
+      ['launcher', 1, 2, 3], ['marble', 2, 1.75],
       ['block', 4, 0], ['block', 5, 0], ['conveyor', 4, 1],
       ['bucket', 6, 0], ['star', 6.25, 1],
       ['block', 7.5, 0], ['block', 7.5, 1],
@@ -77,9 +77,9 @@ const EXAMPLES = {
       ['block', 0, 0], ['block', 0, 1], ['block', 0, 2],
       ['block', 1, 0], ['block', 1, 1], ['block', 1, 2],
       ['block', 2, 0], ['block', 2, 1], ['block', 3, 0], ['block', 3, 1],
-      ['longramp', 2, 2], ['marble', 2, 3],
-      ['block', 4, 0], ['block', 4, 1], ['plank', 4, 2],
-      ['block', 6, 0], ['block', 6, 1],
+      ['longramp', 2, 2], ['marble', 2, 2.75],
+      ['block', 4, 0], ['block', 4, 1, 0, false, { w: 1, h: 0.75 }], ['plank', 4, 1.75],
+      ['block', 6, 0], ['block', 6, 1, 0, false, { w: 1, h: 0.75 }],
       ['domino', 9, 0], ['domino', 10, 0], ['domino', 11, 0],
       ['star', 12.5, 0],
     ],
@@ -88,7 +88,7 @@ const EXAMPLES = {
   'Bell Ringer': {
     blurb: 'A pendulum, pulled back two columns, swings into a bell and the star behind it.',
     items: [
-      ['pendulum', 6, 1, 2],
+      ['pendulum', 6, 1, -2],
       ['bell', 8, 2],
       ['star', 8, 1],
     ],

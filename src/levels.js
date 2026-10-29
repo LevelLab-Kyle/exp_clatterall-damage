@@ -5,7 +5,10 @@
 //   items     the locked pieces already on the board
 //   solution  one set of parts that reaches the star (checked by
 //             tools/check-levels.cjs, never shown in the game)
-// Pieces are [type, x, y, rot, flip, size], like the examples. A level's new
+//   spares    optional: true when the solution still wins with a part left out
+//             (the checker otherwise requires every part)
+// Pieces are [type, x, y, rot, flip, size], like the examples (flip is
+// unused now: left-facing ramps and conveyors are their own gadgets). A level's new
 // gadget is the first level whose parts include it.
 
 const LEVELS = [
@@ -18,10 +21,10 @@ const LEVELS = [
   },
   {
     name: 'Other Way',
-    goal: 'The star is on the left this time. Flip the ramp (⇔ or F).',
-    parts: { ramp: 1 },
+    goal: 'The star is on the left this time. Use the ramp that slopes the other way.',
+    parts: { rampL: 1 },
     items: [['marble', 8, 5], ['star', 2, 0]],
-    solution: [['ramp', 8, 0, 0, true]],
+    solution: [['rampL', 8, 0]],
   },
   {
     name: 'Mind the Gap',
@@ -39,22 +42,23 @@ const LEVELS = [
   {
     name: 'Domino Effect',
     goal: 'The chain stops at the gap. Fill it with dominoes.',
-    parts: { domino: 4 },
+    parts: { domino: 3 },
+    spares: true, // a domino chain can jump a one-cell gap, so 2 of the 3 would do
     items: [
-      ['block', 0, 0], ['block', 0, 1], ['block', 1, 0], ['block', 1, 1], ['longramp', 0, 2], ['marble', 0, 3],
-      ['domino', 5, 0], ['domino', 6, 0], ['domino', 11, 0], ['domino', 12, 0],
-      ['star', 13.5, 0],
+      ['block', 0, 0], ['block', 0, 1], ['block', 1, 0], ['block', 1, 1], ['longramp', 0, 2], ['marble', 0, 2.75],
+      ['domino', 5, 0], ['domino', 6, 0], ['domino', 10, 0], ['domino', 11, 0],
+      ['star', 12, 0],
     ],
-    solution: [['domino', 7, 0], ['domino', 8, 0], ['domino', 9, 0], ['domino', 10, 0]],
+    solution: [['domino', 7, 0], ['domino', 8, 0], ['domino', 9, 0]],
   },
   {
     name: 'Long Ramp',
-    goal: 'The marble lands on the tower and stops. A long ramp will get it rolling.',
+    goal: 'The marble can’t jump the gap. Bridge it with a long ramp, down to the lower side.',
     parts: { longramp: 1 },
     items: [
-      ['block', 2, 0], ['block', 2, 1], ['block', 3, 0], ['block', 3, 1], ['block', 4, 0], ['block', 4, 1], ['block', 5, 0], ['block', 5, 1],
-      ['marble', 3, 6],
-      ['star', 10, 0],
+      ['block', 0, 0, 0, false, { w: 3, h: 3 }], ['ramp', 0, 3], ['marble', 0, 5],
+      ['block', 5, 0, 0, false, { w: 5, h: 2 }],
+      ['star', 9, 2],
     ],
     solution: [['longramp', 3, 2]],
   },
@@ -99,10 +103,16 @@ const LEVELS = [
   },
   {
     name: 'Heavy Hitter',
-    goal: 'The marble needs a big push. Drop a bowling ball on the other end.',
+    goal: 'The marble drops into the first hole. A bowling ball is too big to fall in.',
     parts: { bowling: 1 },
-    items: [['block', 4, 0], ['block', 4, 1], ['seesaw', 5, 0], ['marble', 5, 1], ['star', 6, 4]],
-    solution: [['bowling', 7, 6]],
+    items: [
+      ['block', 0, 0, 0, false, { w: 3, h: 2 }], ['longramp', 1, 2], ['marble', 1, 3],
+      ['block', 3, 0, 0, false, { w: 2, h: 2 }],
+      ['block', 5.75, 0, 0, false, { w: 2, h: 2 }],
+      ['block', 8.5, 0, 0, false, { w: 4.5, h: 2 }],
+      ['star', 12, 2],
+    ],
+    solution: [['bowling', 2, 4]],
   },
   {
     name: 'Conveyor Belt',
@@ -110,7 +120,7 @@ const LEVELS = [
     parts: { conveyor: 1 },
     items: [
       ['block', 0, 0, 0, false, { w: 1, h: 0.5 }], ['block', 1, 0, 0, false, { w: 1, h: 0.5 }], ['block', 2, 0, 0, false, { w: 1, h: 0.5 }],
-      ['marble', 3.5, 3],
+      ['marble', 3, 3],
       ['block', 5, 0, 0, false, { w: 1, h: 0.5 }], ['block', 6, 0, 0, false, { w: 1, h: 0.5 }], ['block', 7, 0, 0, false, { w: 1, h: 0.5 }],
       ['block', 8, 0, 0, false, { w: 1, h: 0.5 }], ['block', 9, 0, 0, false, { w: 1, h: 0.5 }],
       ['star', 9, 0.5],
@@ -119,7 +129,7 @@ const LEVELS = [
   },
   {
     name: 'Updraft',
-    goal: 'Too far to jump. Point a fan up (↺ or R) to carry the marble across.',
+    goal: 'Too far to jump. Turn a fan to blow upward (Rotate) and carry the marble across.',
     parts: { fan: 1 },
     items: [
       ['block', 0, 0], ['block', 0, 1], ['block', 0, 2], ['block', 1, 0], ['block', 1, 1], ['block', 1, 2], ['block', 2, 0], ['block', 2, 1], ['block', 2, 2],
@@ -131,17 +141,17 @@ const LEVELS = [
   },
   {
     name: 'Wrecking Ball',
-    goal: 'Hang a pendulum and pull the ball back (↺ or R) to knock the dominoes over.',
+    goal: 'Hang a pendulum and pull the ball back (Rotate) to knock the dominoes over.',
     parts: { pendulum: 1 },
     items: [['domino', 7, 0], ['domino', 8, 0], ['domino', 9, 0], ['star', 10.5, 0]],
-    solution: [['pendulum', 6, 1, 2]],
+    solution: [['pendulum', 6, 1, -2]],
   },
   {
     name: 'Ding!',
-    goal: 'A bell is round on top. Use it to bounce the falling marble toward the star.',
+    goal: 'The marble flies right past the star. Hang the bell in its way to knock it back.',
     parts: { bell: 1 },
-    items: [['marble', 2.5, 6], ['star', 7, 0]],
-    solution: [['bell', 2, 1]],
+    items: [['block', 0, 0, 0, false, { w: 3, h: 3 }], ['ramp', 0, 3], ['marble', 0, 5], ['star', 3, 0]],
+    solution: [['bell', 4, 2]],
   },
   {
     name: 'Ramp Run',
@@ -158,19 +168,19 @@ const LEVELS = [
   {
     name: 'Zigzag',
     goal: 'The star is under the shelf. Send the marble right, then bring it back left.',
-    parts: { ramp: 1, longramp: 1 },
+    parts: { ramp: 1, longrampL: 1 },
     items: [
-      ['marble', 0.25, 7.25],
-      ['block', 0, 5, 0, false, { w: 4, h: 0.5 }],
+      ['marble', 0, 7],
+      ['block', 0, 5, 0, false, { w: 4, h: 1 }],
       ['block', 0, 0, 0, false, { w: 4, h: 1 }],
       ['block', 6, 0, 0, false, { w: 1, h: 4 }], ['block', 6, 4, 0, false, { w: 1, h: 3 }],
-      ['star', 0.5, 1],
+      ['star', 0, 1],
     ],
-    solution: [['ramp', 0, 5.5], ['longramp', 4, 1, 0, true]],
+    solution: [['ramp', 0, 6], ['longrampL', 4, 1]],
   },
   {
     name: 'Long Bridge',
-    goal: 'The river is too wide for one plank. Prop up the middle and lay two.',
+    goal: 'Too wide for one plank. Lay two, and put a pillar right under where they meet.',
     parts: { block: 2, plank: 2 },
     items: [
       ['block', 0, 0, 0, false, { w: 3, h: 2.25 }], ['ramp', 0, 2.25], ['marble', 0, 4],
@@ -179,17 +189,16 @@ const LEVELS = [
       ['block', 9, 0, 0, false, { w: 2, h: 2.25 }],
       ['star', 10, 2.25],
     ],
-    solution: [['block', 5, 1], ['block', 6, 1], ['plank', 3, 2], ['plank', 6, 2]],
+    solution: [['block', 5.5, 1], ['plank', 3, 2], ['plank', 6, 2]],
   },
   {
     name: 'Double Boing',
     goal: 'One bounce won’t reach the star. Can you make the marble bounce twice?',
     parts: { bouncer: 2 },
     items: [
-      ['block', 0, 0, 0, false, { w: 3, h: 4 }], ['longramp', 1, 4], ['marble', 1, 5],
+      ['block', 0, 0, 0, false, { w: 3, h: 4 }], ['longramp', 1, 4], ['marble', 1, 6],
       ['block', 7.5, 0, 0, false, { w: 0.5, h: 2.5 }],
-      ['block', 13, 0, 0, false, { w: 2, h: 3.5 }],
-      ['star', 13, 3.5],
+      ['star', 12, 3],
     ],
     solution: [['bouncer', 5, 0], ['bouncer', 10, 0]],
   },
@@ -198,7 +207,7 @@ const LEVELS = [
     goal: 'Shoot the marble off the tower, then send it back into the bucket.',
     parts: { launcher: 1, conveyor: 1 },
     items: [
-      ['block', 12, 0, 0, false, { w: 2, h: 4 }], ['marble', 12.25, 4],
+      ['block', 12, 0, 0, false, { w: 2, h: 4 }], ['marble', 12, 3.75],
       ['bucket', 9.5, 0], ['star', 9.75, 0.5],
       ['block', 6.5, 0, 0, false, { w: 3, h: 1.5 }],
     ],
@@ -212,12 +221,12 @@ const LEVELS = [
       ['block', 4, 0], ['block', 4, 1], ['block', 4, 2], ['block', 4, 3],
       ['block', 5, 0], ['block', 5, 1], ['block', 5, 2], ['block', 5, 3],
       ['block', 6, 0], ['block', 6, 1], ['block', 6, 2], ['ramp', 6, 3],
-      ['domino', 4.25, 4], ['marble', 5, 4],
+      ['domino', 4.25, 4], ['marble', 5, 3.75],
       ['block', 10, 0], ['block', 10, 1],
-      ['ramp', 11, 0], ['star', 12.5, 0], ['ramp', 14, 0, 0, true],
+      ['ramp', 11, 0], ['star', 12.5, 0], ['rampL', 14, 0],
       ['block', 15, 0], ['block', 15, 1],
     ],
-    solution: [['pendulum', 3, 5, 2], ['bouncer', 8, 0]],
+    solution: [['pendulum', 3, 5, -2], ['bouncer', 8, 0]],
   },
   {
     name: 'Heavy Delivery',
@@ -238,7 +247,7 @@ const LEVELS = [
     parts: { conveyor: 1, bouncer: 1, fan: 1 },
     items: [
       ['block', 0, 0, 0, false, { w: 4, h: 3 }],
-      ['marble', 1, 3.5],
+      ['marble', 2, 3.25],
       ['block', 9.5, 0, 0, false, { w: 3, h: 3 }],
       ['star', 11.25, 3],
     ],
@@ -247,45 +256,42 @@ const LEVELS = [
   {
     name: 'Back Under',
     goal: 'Fire the marble, finish the domino chain, and send the far marble back under the shelf.',
-    parts: { launcher: 1, domino: 2, ramp: 1 },
+    parts: { launcher: 1, domino: 1, rampL: 1 },
     items: [
-      ['block', 0, 0, 0, false, { w: 4, h: 2 }], ['block', 4, 0, 0, false, { w: 0.5, h: 2 }],
-      ['block', 4.5, 0, 0, false, { w: 3.5, h: 2.5 }],
-      ['block', 8, 2, 0, false, { w: 3, h: 0.5 }],
-      ['marble', 1, 2],
-      ['domino', 3.5, 2], ['domino', 7, 2.5],
-      ['marble', 8, 2.5],
+      ['block', 0, 0, 0, false, { w: 8, h: 2 }], ['block', 8, 2, 0, false, { w: 3, h: 0.5 }],
+      ['marble', 1, 1.75],
+      ['domino', 3.5, 2], ['domino', 7, 2],
+      ['marble', 8, 2.25],
       ['star', 8.5, 0],
     ],
-    solution: [['launcher', 0, 2, 3], ['domino', 5, 2.5], ['domino', 6, 2.5], ['ramp', 11, 0, 0, true]],
+    solution: [['launcher', 0, 2, 3], ['domino', 5, 2], ['rampL', 11, 0]],
   },
   {
     name: 'Up, Over, Back',
     goal: 'Pop the marble out of the pit, blow it across, then bring it back under the shelf.',
-    parts: { launcher: 1, fan: 1, conveyor: 1 },
+    parts: { launcher: 1, fan: 1, conveyorL: 1 },
     items: [
-      ['block', 0, 0, 0, false, { w: 1, h: 3 }], ['marble', 1.25, 0.5], ['block', 2.25, 0, 0, false, { w: 1, h: 3 }],
+      ['block', 0, 0, 0, false, { w: 1, h: 3 }], ['marble', 1, 0.25], ['block', 2.25, 0, 0, false, { w: 1, h: 3 }],
       ['block', 3.25, 2.5, 0, false, { w: 2.75, h: 0.5 }],
       ['block', 3.25, 0, 0, false, { w: 2.75, h: 0.5 }], ['star', 4, 0.5],
       ['block', 8, 0, 0, false, { w: 1, h: 4 }], ['block', 8, 4, 0, false, { w: 1, h: 2 }],
     ],
-    solution: [['launcher', 1, 0], ['fan', 0, 3], ['conveyor', 6, 0, 0, true]],
+    solution: [['launcher', 1, 0], ['fan', 0, 3], ['conveyorL', 6, 0]],
   },
   {
     name: 'Grand Machine',
-    goal: 'Build the whole machine: fire, topple, carry, bounce and float the marble to the star.',
-    parts: { launcher: 1, domino: 1, conveyor: 1, bouncer: 1, fan: 1 },
+    goal: 'Build the whole machine: fire, topple, carry, bounce and float the ball to the star.',
+    parts: { launcher: 1, domino: 2, conveyor: 1, bouncer: 1, fan: 1 },
+    spares: true, // one domino next to the ball also does it; two keep the row even
     items: [
-      ['block', 0, 0, 0, false, { w: 4, h: 2 }], ['block', 4, 0, 0, false, { w: 0.5, h: 2 }],
-      ['block', 4.5, 0, 0, false, { w: 4.5, h: 2.5 }],
-      ['block', 9, 0, 0, false, { w: 2, h: 2 }], ['block', 11, 0, 0, false, { w: 0.5, h: 2.5 }],
-      ['marble', 1, 2],
-      ['domino', 3.5, 2], ['domino', 5, 2.5], ['domino', 7, 2.5],
-      ['marble', 7.75, 2.5],
-      ['block', 14, 0],
-      ['block', 16.5, 0, 0, false, { w: 2.5, h: 3 }],
-      ['star', 18, 3],
+      ['block', 0, 0, 0, false, { w: 9, h: 2 }],
+      ['block', 9, 0, 0, false, { w: 2, h: 1.5 }], ['block', 11, 0, 0, false, { w: 0.5, h: 2 }],
+      ['marble', 1, 1.75],
+      ['domino', 2.5, 2], ['domino', 4, 2],
+      ['ball', 8, 2],
+      ['block', 16, 0, 0, false, { w: 2.5, h: 3 }],
+      ['star', 17.5, 3],
     ],
-    solution: [['launcher', 0, 2, 3], ['domino', 6, 2.5], ['conveyor', 9, 2], ['bouncer', 12, 0], ['fan', 14, 1, 1]],
+    solution: [['launcher', 0, 2, 3], ['domino', 5.5, 2], ['domino', 7, 2], ['conveyor', 9, 1.5], ['bouncer', 12, 0], ['fan', 13, 0, 1]],
   },
 ];
