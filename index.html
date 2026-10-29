@@ -8,7 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;700&display=fallback" />
-    <link rel="stylesheet" href="src/style.css" />
+    <!-- The ?v= on each local file is a cache buster: /deploy swaps the placeholder for the commit hash. -->
+    <link rel="stylesheet" href="src/style.css?v=__VERSION__" />
   </head>
   <body>
     <div id="app">
@@ -84,11 +85,11 @@
         </div>
       </footer>
     </div>
-    <script src="vendor/libs.js"></script>
-    <script src="assets/sounds.js"></script>
-    <script src="src/gadgets.js"></script>
-    <script src="src/examples.js"></script>
-    <script src="src/levels.js"></script>
-    <script src="src/main.js"></script>
+    <script src="vendor/libs.js?v=__VERSION__"></script>
+    <script src="assets/sounds.js?v=__VERSION__"></script>
+    <script src="src/gadgets.js?v=__VERSION__"></script>
+    <script src="src/examples.js?v=__VERSION__"></script>
+    <script src="src/levels.js?v=__VERSION__"></script>
+    <script src="src/main.js?v=__VERSION__"></script>
   </body>
 </html>

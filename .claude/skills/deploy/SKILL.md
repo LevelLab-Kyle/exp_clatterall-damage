@@ -40,6 +40,11 @@ Runtime files only:
 
 ## 3. Upload
 
+The upload is staged from the commit itself (`git archive HEAD`), and
+`index.html` gets its cache buster stamped in: every local script and
+stylesheet link ends in `?v=__VERSION__`, which becomes the commit's short
+hash, so browsers fetch fresh files after each deploy.
+
 Dry run first, then the real sync. Flags mirror the platform's client
 sync: no permission bits (the web host rejects them), delete what the
 source no longer has, keep the output short.
@@ -47,13 +52,19 @@ source no longer has, keep the output short.
 ```sh
 cd /Users/levellab/Repos/Experiments/Rube-Goldberg
 REMOTE="levellab:~/www/lab/clatter-lab"
+VERSION=$(git rev-parse --short HEAD)
+STAGE=$(mktemp -d)
+git archive HEAD index.html src assets vendor | tar -x -C "$STAGE"
+sed -i '' "s/__VERSION__/$VERSION/g" "$STAGE/index.html"
+grep -c "?v=$VERSION" "$STAGE/index.html"   # expect 7 (stylesheet + 6 scripts)
 FILTER=(--include='index.html' --include='src/' --include='src/*.js' --include='src/style.css'
         --include='assets/' --include='assets/*.js' --include='vendor/' --include='vendor/libs.js'
         --exclude='*')
 # See what would change
-rsync -rlvz --delete-after --omit-dir-times --dry-run --itemize-changes "${FILTER[@]}" ./ "$REMOTE/" | grep -vE '^(sending|sent |total )' 
+rsync -rlvz --delete-after --omit-dir-times --dry-run --itemize-changes "${FILTER[@]}" "$STAGE/" "$REMOTE/" | grep -vE '^(sending|sent |total )'
 # Do it
-rsync -rlvz --delete-after --omit-dir-times --itemize-changes "${FILTER[@]}" ./ "$REMOTE/" | grep -vE '^(sending|sent |total )'
+rsync -rlvz --delete-after --omit-dir-times --itemize-changes "${FILTER[@]}" "$STAGE/" "$REMOTE/" | grep -vE '^(sending|sent |total )'
+rm -rf "$STAGE"
 ```
 
 `rsync` creates `clatter-lab/` on the host if it doesn't exist yet (its parent
@@ -66,9 +77,15 @@ report it; anything else non-zero is a failure: stop and report the output.
 ssh levellab 'ls -la ~/www/lab/clatter-lab && ls ~/www/lab/clatter-lab/src ~/www/lab/clatter-lab/assets ~/www/lab/clatter-lab/vendor'
 ```
 
-Expect `index.html`, `src/` (main.js, gadgets.js, examples.js, style.css),
-`assets/sounds.js`, `vendor/libs.js` and nothing else. If the public URL for
-`~/www/lab` is known, also `curl -sI <url>/clatter-lab/` and expect `200`.
+Expect `index.html`, `src/` (main.js, gadgets.js, examples.js, levels.js,
+style.css), `assets/sounds.js`, `vendor/libs.js` and nothing else. Then check
+the live page (https://lab.levellab.com/clatter-lab/) returns `200` and carries
+this commit's cache buster:
+
+```sh
+curl -s -o /dev/null -w '%{http_code}\n' https://lab.levellab.com/clatter-lab/
+curl -s https://lab.levellab.com/clatter-lab/ | grep -c "?v=$(git rev-parse --short HEAD)"   # expect 7
+```
 
 ## 5. Report
 
