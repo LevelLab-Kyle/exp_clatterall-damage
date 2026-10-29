@@ -603,7 +603,7 @@ function updateDrag(ev) {
     const dx = (ev.clientX - drag.startX) / (PX_PER_UNIT * view.zoom);
     const dy = (ev.clientY - drag.startY) / (PX_PER_UNIT * view.zoom);
     view.cx = drag.cx0 - dx;
-    view.cy = drag.cy0 + dy;
+    if (!lockY) view.cy = drag.cy0 + dy;
     return;
   }
   const type = drag.kind === 'new' ? drag.type : drag.item.type;
@@ -752,7 +752,7 @@ canvas.addEventListener('pointermove', (ev) => {
   if (pinch.mode === 'zoom') view.zoom = THREE.MathUtils.clamp(pinch.zoom * s.dist / Math.max(1, pinch.dist), ZOOM_MIN, ZOOM_MAX);
   const k = PX_PER_UNIT * view.zoom;
   view.cx = pinch.cx - (s.mid.x - pinch.mid.x) / k;
-  view.cy = pinch.cy + (s.mid.y - pinch.mid.y) / k;
+  if (!lockY) view.cy = pinch.cy + (s.mid.y - pinch.mid.y) / k;
 });
 function endTouch(ev) {
   if (!touches.delete(ev.pointerId)) return;
@@ -777,7 +777,7 @@ canvas.addEventListener('wheel', (ev) => {
     view.zoom = THREE.MathUtils.clamp(view.zoom * Math.exp(-ev.deltaY * 0.01), ZOOM_MIN, ZOOM_MAX);
   } else {
     view.cx += ev.deltaX / (PX_PER_UNIT * view.zoom);
-    view.cy -= ev.deltaY / (PX_PER_UNIT * view.zoom);
+    if (!lockY) view.cy -= ev.deltaY / (PX_PER_UNIT * view.zoom);
   }
 }, { passive: false });
 
@@ -1124,6 +1124,24 @@ function updateItemTools() {
   itemTools.classList.toggle('below', y < 200); // no room above near the top
 }
 btnHome.onclick = homeView;
+
+// The lock (on by default) stops panning and scrolling up and down; left
+// and right still work. Remembered per browser.
+const LOCK_KEY = 'clatter-lab.lock-y';
+const btnLock = document.getElementById('btn-lock');
+let lockY = true;
+try { lockY = localStorage.getItem(LOCK_KEY) !== 'off'; } catch {}
+function showLock() {
+  btnLock.classList.toggle('on', lockY);
+  btnLock.setAttribute('aria-pressed', String(lockY));
+  btnLock.title = lockY ? 'Up/down scrolling is locked (click to unlock)' : 'Up/down scrolling is unlocked (click to lock)';
+}
+btnLock.onclick = () => {
+  lockY = !lockY;
+  try { localStorage.setItem(LOCK_KEY, lockY ? 'on' : 'off'); } catch {}
+  showLock();
+};
+showLock();
 
 // Tray pictures are rendered from each gadget's own model (a small 3/4 view),
 // so they always match the board. A gadget can supply `image` (a URL) instead.

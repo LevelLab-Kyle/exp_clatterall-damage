@@ -252,6 +252,9 @@ body.mode-sandbox .examples { flex: 1 1 auto; }
   box-shadow: var(--shadow-drop);
 }
 #view-tools > .button-icon:disabled { opacity: 0.5; cursor: not-allowed; }
+/* The lock is lit when on; off, its shackle swings open. */
+#btn-lock.on { color: var(--color-accent); }
+#btn-lock:not(.on) .shackle { transform: translate(-3px, -1px) rotate(-25deg); transform-origin: 11px 7px; }
 #clear-confirm {
   position: absolute;
   top: calc(var(--height-input) + var(--space-2));

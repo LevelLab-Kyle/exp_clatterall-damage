@@ -28,6 +28,7 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 | Zoom | `Ctrl`/`Cmd` + scroll, or pinch (trackpad or touch screen) |
 | Home | The ⌂ button in the board's top-left corner, or `H`: fit the whole contraption on screen. Also happens on load, when loading an example and when the window resizes |
 | Play / Reset | Buttons, or `Space` |
+| Lock | The 🔒 button between Home and Clear, on by default: panning and scrolling only move left and right, so the view's height stays put. Click to unlock (the shackle opens); remembered per browser |
 | Clear | The 🗑 button next to Home. Asks "Are you sure?" first; undo brings it all back |
 | Undo / Redo | Buttons, or `Cmd/Ctrl+Z` / `Shift+Cmd/Ctrl+Z` (also `Ctrl+Y`). Covers placing, moving, rotating, deleting and Clear |
 
