@@ -213,8 +213,8 @@ const GADGETS = {
     name: 'Block',
     hint: 'grows',
     w: 1, h: 1,
-    // Grow / shrink steps the block's width or height by a quarter cell.
-    resizable: { sizes: [[1, 1], [2, 1], [2, 2], [1, 2]] },
+    // Size steps through these (width x height): whole sizes, then half sizes.
+    resizable: { sizes: [[1, 1], [2, 1], [1, 2], [2, 2], [0.5, 0.5], [1, 0.5], [0.5, 1]] },
     makeMesh(item) {
       const s = item?.size || NORMAL_SIZE;
       return shadowed(new THREE.Mesh(new THREE.BoxGeometry(s.w, s.h, 1), standard(COLORS.block)));

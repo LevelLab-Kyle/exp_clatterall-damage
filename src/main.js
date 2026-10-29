@@ -236,10 +236,11 @@ function moveItem(item, x, y, rot = item.rot, flip = item.flip, size = item.size
   item.x = x;
   item.y = y;
   item.rot = rot;
-  if (flip !== item.flip || !sameSize(size, item.size)) {
+  const reshaped = flip !== item.flip || !sameSize(size, item.size);
+  item.size = size; // even at the same width and height, its Size step may differ
+  if (reshaped) {
     // A mirrored or resized shape needs its own geometry: rebuild the mesh in place.
     item.flip = flip;
-    item.size = size;
     scene.remove(item.mesh);
     tweens.delete(item.mesh);
     item.mesh = GADGETS[item.type].makeMesh(item);
@@ -865,9 +866,12 @@ function turnedAnchor(item, rot) {
 function nextSize(item, dir) {
   const r = GADGETS[item.type].resizable;
   if (!r) return null;
-  const sizes = r.sizes.map(([w, h]) => ({ w, h }));
+  // Each size remembers its step in the list, so a size that comes up twice
+  // in a cycle still moves on to the right next one.
+  const sizes = r.sizes.map(([w, h], step) => ({ w, h, step }));
   const was = item.size || NORMAL_SIZE;
-  const at = sizes.findIndex((z) => z.w === was.w && z.h === was.h);
+  const same = (z) => z.w === was.w && z.h === was.h;
+  const at = sizes[was.step] && same(sizes[was.step]) ? was.step : sizes.findIndex(same);
   const old = footprintSize(item.type, item.rot, item.size);
   for (let k = 1; k <= sizes.length; k++) {
     const size = sizes[(((at + dir * k) % sizes.length) + sizes.length) % sizes.length];
