@@ -314,8 +314,20 @@ function updateHistoryButtons() {
 //   player has placed in each level.
 // ---------------------------------------------------------------------------
 
-const SAVE_KEY = 'clatter-lab.save.v1';
-const LEVELS_KEY = 'clatter-lab.levels.v1';
+const SAVE_KEY = 'clatterall-damage.save.v1';
+const LEVELS_KEY = 'clatterall-damage.levels.v1';
+
+// The game used to be called Clatter Lab: copy any saves from the old keys
+// once, so players keep their progress after the rename.
+try {
+  for (const k of ['save.v1', 'levels.v1', 'lock-y']) {
+    const old = localStorage.getItem('clatter-lab.' + k);
+    if (old !== null && localStorage.getItem('clatterall-damage.' + k) === null) {
+      localStorage.setItem('clatterall-damage.' + k, old);
+    }
+    localStorage.removeItem('clatter-lab.' + k);
+  }
+} catch {}
 let saveTimer = null;
 
 function scheduleSave() {
@@ -1127,7 +1139,7 @@ btnHome.onclick = homeView;
 
 // The lock (on by default) stops panning and scrolling up and down; left
 // and right still work. Remembered per browser.
-const LOCK_KEY = 'clatter-lab.lock-y';
+const LOCK_KEY = 'clatterall-damage.lock-y';
 const btnLock = document.getElementById('btn-lock');
 let lockY = true;
 try { lockY = localStorage.getItem(LOCK_KEY) !== 'off'; } catch {}

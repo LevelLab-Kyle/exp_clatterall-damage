@@ -1,6 +1,6 @@
 ---
 name: auto
-description: Stage, syntax-check, smoke-test in the browser, then commit and push the current work on Clatter Lab. Use when the user says /auto or asks to "ship it".
+description: Stage, syntax-check, smoke-test in the browser, then commit and push the current work on ClatterAll Damage. Use when the user says /auto or asks to "ship it".
 ---
 
 # /auto — stage, test, smoke test, commit, push
@@ -10,7 +10,7 @@ Run these steps in order. Stop at the first failure, fix it (or report it) and d
 ## 1. Stage
 
 ```sh
-cd /Users/levellab/Repos/Experiments/Rube-Goldberg
+cd /Users/levellab/Repos/Experiments/ClatterAll-Damage
 git add -A
 git status --short
 ```
@@ -37,7 +37,7 @@ The game is plain HTML with no build step, but the Chrome extension cannot open 
 
 ```sh
 curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8077/index.html || \
-  python3 -I - /Users/levellab/Repos/Experiments/Rube-Goldberg <<'EOF' &
+  python3 -I - /Users/levellab/Repos/Experiments/ClatterAll-Damage <<'EOF' &
 import http.server, sys, os
 os.chdir(sys.argv[1])
 class H(http.server.SimpleHTTPRequestHandler):
@@ -57,7 +57,7 @@ Then, with the claude-in-chrome tools (load them with one ToolSearch call: `tabs
 
 ```js
 // This test changes the boards and saved progress; keep a copy to put back at the end.
-const kept = { levels: localStorage.getItem('clatter-lab.levels.v1'), sandbox: localStorage.getItem('clatter-lab.save.v1') };
+const kept = { levels: localStorage.getItem('clatterall-damage.levels.v1'), sandbox: localStorage.getItem('clatterall-damage.save.v1') };
 const out = [];
 enterSandbox();
 out.push('cards ' + (document.querySelectorAll('.gadget-card').length === GADGET_ORDER.length ? 'ok' : 'FAIL'));
@@ -92,7 +92,7 @@ LEVELS.forEach((lv, n) => {
 out.push('levels ' + (out.some((l) => l.startsWith('level ')) ? 'FAIL' : 'ok'));
 clearTimeout(saveTimer); saveTimer = null;
 saveProgress = scheduleSave = () => {}; // nothing may save over the copy before the reload
-for (const [k, v] of [['clatter-lab.levels.v1', kept.levels], ['clatter-lab.save.v1', kept.sandbox]]) v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v);
+for (const [k, v] of [['clatterall-damage.levels.v1', kept.levels], ['clatterall-damage.save.v1', kept.sandbox]]) v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v);
 setTimeout(() => location.reload(), 50);
 out.join(' | ');
 ```
