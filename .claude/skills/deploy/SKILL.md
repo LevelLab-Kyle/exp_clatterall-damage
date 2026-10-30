@@ -54,6 +54,7 @@ cd /Users/levellab/Repos/Experiments/ClatterAll-Damage
 REMOTE="levellab:~/www/lab/clatterall-damage"
 VERSION=$(git rev-parse --short HEAD)
 STAGE=$(mktemp -d)
+chmod 755 "$STAGE"   # mktemp makes it 700; rsync copies that onto a new target folder, which then 403s
 git archive HEAD index.html src assets vendor | tar -x -C "$STAGE"
 sed -i '' "s/__VERSION__/$VERSION/g" "$STAGE/index.html"
 grep -c "?v=$VERSION" "$STAGE/index.html"   # expect 7 (stylesheet + 6 scripts)
