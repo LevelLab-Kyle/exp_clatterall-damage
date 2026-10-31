@@ -137,7 +137,6 @@ const GADGETS = {
   // ball are its three sizes (see BALL_SIZES; Size swaps between them).
   marble: {
     name: 'Marble',
-    hint: 'rolls',
     // It snaps like a whole cell, sitting in the middle of it: only those
     // 2 x 2 quarter cells are taken, so neighbours can come close.
     w: 1, h: 1,
@@ -155,7 +154,6 @@ const GADGETS = {
   // Between the marble and the bowling ball: a whole cell across, middling weight.
   ball: {
     name: 'Ball',
-    hint: 'medium',
     w: 1, h: 1,
     dynamic: true,
     makeMesh() {
@@ -169,7 +167,6 @@ const GADGETS = {
 
   domino: {
     name: 'Domino',
-    hint: 'tips over',
     w: DOMINO.w, h: DOMINO.h,
     rotatable: true,
     dynamic: true,
@@ -192,7 +189,6 @@ const GADGETS = {
   // wedge's mirror image isn't one of its own rotations.
   ramp: {
     name: 'Ramp',
-    hint: 'grows',
     w: 1, h: 1,
     rotatable: true,
     // The Size button steps through these (width x height, in its own
@@ -212,7 +208,6 @@ const GADGETS = {
 
   block: {
     name: 'Block',
-    hint: 'grows',
     w: 1, h: 1,
     // Size steps through these (width x height): whole sizes, then half sizes.
     resizable: { sizes: [[1, 1], [2, 1], [1, 2], [2, 2], [0.5, 0.5], [1, 0.5], [0.5, 1]] },
@@ -229,7 +224,6 @@ const GADGETS = {
 
   star: {
     name: 'Star',
-    hint: 'the goal!',
     w: 1, h: 1,
     goal: true,
     makeMesh() {
@@ -254,7 +248,6 @@ const GADGETS = {
 
   bowling: {
     name: 'Bowling ball',
-    hint: 'heavy',
     w: 2, h: 2,
     dynamic: true,
     makeMesh() {
@@ -268,7 +261,6 @@ const GADGETS = {
 
   bouncer: {
     name: 'Bouncer',
-    hint: 'boing!',
     w: 1, h: 0.5,
     rotatable: true,
     makeMesh() {
@@ -287,7 +279,6 @@ const GADGETS = {
 
   seesaw: {
     name: 'Seesaw',
-    hint: 'tips',
     w: 3, h: 0.75,
     // Size: 3 wide, 4 wide, then 3 wide with the plank shifted half a cell
     // left or right of the fulcrum (a size's third value, `off`, is how far
@@ -344,7 +335,6 @@ const GADGETS = {
 
   fan: {
     name: 'Fan',
-    hint: 'rotates',
     w: 1, h: 1,
     rotatable: true,
     push: 3.5, // reach in cells
@@ -399,7 +389,6 @@ const GADGETS = {
 
   pendulum: {
     name: 'Pendulum',
-    hint: 'swings',
     w: 1, h: 3.25,
     // Rotate doesn't turn the pendulum; it swings the ball out one level
     // either side (rot is -1..1). The rope is 2.5 long, so pulled out the ball
@@ -475,7 +464,6 @@ const GADGETS = {
   // front face shows the belt direction.
   conveyor: {
     name: 'Conveyor',
-    hint: 'carries',
     w: 2, h: 0.5,
     rotatable: true,
     flippable: true,
@@ -535,7 +523,6 @@ const GADGETS = {
 
   launcher: {
     name: 'Launcher',
-    hint: 'fires on play',
     w: 1, h: 0.5,
     rotatable: true,
     delay: 0.4,
@@ -590,7 +577,6 @@ const GADGETS = {
 
   bell: {
     name: 'Bell',
-    hint: 'rings',
     w: 1, h: 1,
     idleFrame: true,
     makeMesh() {
@@ -626,7 +612,6 @@ const GADGETS = {
 
   plank: {
     name: 'Plank',
-    hint: 'loose board',
     w: 3, h: 0.25,
     rotatable: true,
     dynamic: true,
@@ -646,7 +631,6 @@ const GADGETS = {
 
   bucket: {
     name: 'Bucket',
-    hint: 'catches',
     // A quarter-thick floor and walls around an open inside exactly as wide
     // as a ball, so a bucket lined up under a ball catches it. Size steps it
     // up for each ball: inside 1/2 (marble), 1 (ball), 2 (bowling ball). The

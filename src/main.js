@@ -1275,7 +1275,7 @@ function buildTray() {
     card.className = 'gadget-card';
     card.dataset.type = type;
     const isNew = level && newGadgetOf(levelIndex) === type;
-    card.innerHTML = `<img class="icon" alt="" draggable="false" src="${thumbOf(type)}"><div class="name">${def.name}</div><div class="hint">${def.hint}</div>`
+    card.innerHTML = `<img class="icon" alt="" draggable="false" src="${thumbOf(type)}"><div class="name">${def.name}</div>`
       + (level ? '<div class="count"></div>' : '') + (isNew ? '<div class="new">NEW</div>' : '');
     card.addEventListener('pointerdown', (ev) => { if (!playing) beginNewDrag(type, ev); });
     trayTrack.appendChild(card);

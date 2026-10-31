@@ -451,7 +451,7 @@ body.playing #play-badge { opacity: 1; }
    swipe), so a drag never turns into a scroll by accident. Whatever is cut
    off at either edge fades out to show there's more. */
 .tray-row { display: flex; align-items: center; gap: var(--space-1); }
-.tray-row .button-icon { flex: 0 0 auto; font-size: var(--font-size-xl); height: 60px; }
+.tray-row .button-icon { flex: 0 0 auto; font-size: var(--font-size-xl); height: 90px; } /* as tall as a card */
 .tray-row .button-icon.off { display: none; }
 
 #gadget-list {
@@ -476,7 +476,12 @@ body.playing #play-badge { opacity: 1; }
   touch-action: none; /* any drag picks the gadget up */
   flex: 0 0 auto;
   width: 90px;
-  padding: var(--space-2) var(--space-1);
+  height: 90px; /* square */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1);
   background: var(--color-background);
   border: var(--border-width) var(--border-style) var(--color-border);
   border-radius: var(--radius-lg);
@@ -490,7 +495,6 @@ body.playing #play-badge { opacity: 1; }
 .gadget-card:active { cursor: grabbing; }
 .gadget-card .icon { width: 50px; height: 50px; display: block; margin: 0 auto; pointer-events: none; }
 .gadget-card .name { font-size: var(--font-size-sm); font-weight: var(--font-weight-bold); margin-top: var(--space-1); }
-.gadget-card .hint { font-size: var(--font-size-xs); color: var(--color-text-dark); }
 .gadget-card { position: relative; }
 /* In a level each card shows how many are left; used-up cards grey out. */
 .gadget-card .count {
@@ -525,11 +529,11 @@ body.playing #tray { opacity: 0.5; pointer-events: none; }
 
 button, select, #item-tools { touch-action: manipulation; }
 
-/* Phones: the top bar wraps to two rows and its buttons tighten up. */
+/* Phones: the top bar stays on one row; the level name or example menu shrinks to fit. */
 @media (max-width: 720px) {
-  #topbar { height: auto; flex-wrap: wrap; row-gap: var(--space-1); padding: var(--space-1) var(--space-2); }
-  .modes { order: 1; }
-  .level-info, .examples { order: 3; width: 100%; }
-  .examples select { flex: 1 1 auto; }
+  #topbar { gap: var(--space-2); }
+  .modes { flex: 0 0 auto; }
+  .level-info, .examples { min-width: 0; flex: 1 1 auto; }
+  .examples select { flex: 1 1 auto; min-width: 0; width: 100%; }
   .examples label { display: none; }
 }
