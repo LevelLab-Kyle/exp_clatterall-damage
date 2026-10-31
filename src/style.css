@@ -199,6 +199,7 @@ select:focus { outline: none; border-color: var(--color-accent); }
 }
 
 #topbar {
+  position: relative;
   height: var(--height-header);
   display: flex;
   align-items: center;
@@ -208,6 +209,20 @@ select:focus { outline: none; border-color: var(--color-accent); }
   background: var(--color-surface);
   border-bottom: var(--border-width) var(--border-style) var(--color-border);
 }
+
+/* "Level Lab", centered on the bar. main.js hides it when it would touch
+   the mode switch or the level / example controls. */
+#brand {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-dark);
+  white-space: nowrap;
+  pointer-events: none;
+}
+#brand.no-room { visibility: hidden; }
 
 .examples { display: flex; align-items: center; gap: var(--space-2); }
 
@@ -534,6 +549,6 @@ button, select, #item-tools { touch-action: manipulation; }
   #topbar { gap: var(--space-2); }
   .modes { flex: 0 0 auto; }
   .level-info, .examples { min-width: 0; flex: 1 1 auto; }
-  .examples select { flex: 1 1 auto; min-width: 0; width: 100%; }
+  .examples select { min-width: 0; } /* natural width, shrinking if it must */
   .examples label { display: none; }
 }

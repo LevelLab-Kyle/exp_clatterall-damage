@@ -1544,7 +1544,28 @@ function showMode() {
   document.getElementById('level-title').textContent = level ? `${levelIndex + 1}. ${level.name}` : '';
   document.getElementById('tray-label').textContent = level ? level.goal : 'Drag a gadget onto the board';
   buildTray();
+  fitBrand();
 }
+
+// Show "Level Lab" in the middle of the top bar only when there's a clear gap
+// on both sides. The left-hand controls can shrink (the level name cuts off
+// with "…"), so measure them at their full width.
+function fitBrand() {
+  const brand = document.getElementById('brand');
+  const left = document.querySelector(currentLevel() ? '.level-info' : '.examples');
+  const bar = document.getElementById('topbar').getBoundingClientRect();
+  const right = document.getElementById('modes').getBoundingClientRect();
+  left.style.flex = '0 0 auto';
+  left.style.width = 'max-content';
+  const leftW = left.getBoundingClientRect().width;
+  left.style.flex = left.style.width = '';
+  const pad = parseFloat(getComputedStyle(document.getElementById('topbar')).paddingLeft);
+  const b = brand.getBoundingClientRect();
+  const GAP = 20;
+  brand.classList.toggle('no-room', b.left - GAP < bar.left + pad + leftW || b.right + GAP > right.left);
+}
+window.addEventListener('resize', fitBrand);
+document.fonts?.ready.then(fitBrand); // text widths change once Roboto loads
 
 document.getElementById('mode-levels').onclick = () => { if (mode !== 'levels') loadLevel(levelIndex); };
 document.getElementById('mode-sandbox').onclick = enterSandbox;
