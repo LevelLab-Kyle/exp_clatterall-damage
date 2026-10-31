@@ -4,10 +4,13 @@
 
 const canvas = document.getElementById('scene');
 const stage = document.getElementById('stage');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+// Phones and tablets have slow GPUs and dense screens: draw fewer pixels
+// and cheaper shadows there.
+const TOUCH = window.matchMedia('(pointer: coarse)').matches;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, TOUCH ? 1.5 : 2));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = TOUCH ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
@@ -60,7 +63,7 @@ composer.addPass(new THREE.OutputPass());
 scene.add(new THREE.HemisphereLight(0xffffff, 0xb8a98a, 0.9));
 const sun = new THREE.DirectionalLight(0xffffff, 1.6);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.setScalar(TOUCH ? 1024 : 2048);
 sun.shadow.camera.near = 1;
 sun.shadow.camera.far = 120;
 sun.shadow.bias = -0.0005;
@@ -428,19 +431,37 @@ function onGoalHit(star) {
 // the Play button or Space, so scripted/synchronous runs stay silent.
 // ---------------------------------------------------------------------------
 
-const sounds = {};
-for (const [key, b64] of Object.entries(typeof SOUND_DATA === 'undefined' ? {} : SOUND_DATA)) {
-  sounds[key] = new Audio('data:audio/mpeg;base64,' + b64);
-  sounds[key].preload = 'auto';
+// Web Audio, decoded once up front. Playing a fresh <audio> element per hit
+// made phones decode the MP3 again on the main thread, which stalled the run
+// for a moment (worst on the long win sound).
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+const audio = AudioCtx ? new AudioCtx() : null;
+const sounds = {}; // key -> AudioBuffer, once decoded
+if (audio) {
+  for (const [key, b64] of Object.entries(typeof SOUND_DATA === 'undefined' ? {} : SOUND_DATA)) {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    audio.decodeAudioData(bytes.buffer, (buf) => { sounds[key] = buf; }, () => {});
+  }
 }
 let audioArmed = false; // true during a user-started run
 const lastImpact = new Map(); // body -> time of its last sound
 
+// Browsers keep audio off until a tap or key press; Play and Space call this.
+function armAudio() {
+  audioArmed = true;
+  if (audio && audio.state !== 'running') audio.resume().catch(() => {});
+}
+
 function playSound(key, volume = 1) {
   if (!audioArmed || !sounds[key]) return;
-  const a = sounds[key].cloneNode();
-  a.volume = Math.min(1, Math.max(0, volume));
-  a.play().catch(() => {});
+  const src = audio.createBufferSource();
+  src.buffer = sounds[key];
+  const gain = audio.createGain();
+  gain.gain.value = Math.min(1, Math.max(0, volume));
+  src.connect(gain).connect(audio.destination);
+  src.start();
 }
 
 function onBellHit(item, ev) {
@@ -815,7 +836,7 @@ window.addEventListener('keydown', (ev) => {
   }
   if ((ev.metaKey || ev.ctrlKey) && ev.key === 'y') { ev.preventDefault(); redo(); }
   if (ev.key === 'Escape') { select(null); clearConfirm.hidden = true; }
-  if (ev.key === ' ') { ev.preventDefault(); if (playing) stopPlay(); else { audioArmed = true; startPlay(); } }
+  if (ev.key === ' ') { ev.preventDefault(); if (playing) stopPlay(); else { armAudio(); startPlay(); } }
 });
 
 // Every way a gadget can be turned, in Rotate order, as { rot, flip }. A
@@ -1080,7 +1101,7 @@ const toolFlip = document.getElementById('tool-flip');
 const toolDelete = document.getElementById('tool-delete');
 const trayList = document.getElementById('gadget-list');
 
-btnPlay.onclick = () => { audioArmed = true; startPlay(); };
+btnPlay.onclick = () => { armAudio(); startPlay(); };
 btnReset.onclick = stopPlay;
 // Clear asks first. In a level it takes back the player's parts and leaves
 // the level's own pieces.
@@ -1422,7 +1443,11 @@ function frame() {
   }
   updateItemTools();
 
-  composer.render();
+  // The outline needs the composer's extra passes; with nothing selected
+  // (always so while playing) draw straight to the screen, which is much
+  // cheaper on phones.
+  if (outlinePass.selectedObjects.length) composer.render();
+  else renderer.render(scene, camera);
 }
 
 // ---------------------------------------------------------------------------
