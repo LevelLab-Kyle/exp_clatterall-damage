@@ -744,10 +744,16 @@ function trackTouchDown(ev) {
   return true;
 }
 
-// Safari has its own pinch gesture events; stop them zooming the page.
+// The page itself never zooms: only the board does, with its own pinch.
+// Safari has its own pinch gesture events and ignores the viewport's
+// user-scalable=no, so stop those, any two-finger touch move, double-tap
+// zoom, and trackpad pinch (a ctrl+wheel) everywhere off the board.
 for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
   document.addEventListener(type, (ev) => ev.preventDefault(), { passive: false });
 }
+document.addEventListener('touchmove', (ev) => { if (ev.touches.length > 1) ev.preventDefault(); }, { passive: false });
+document.addEventListener('dblclick', (ev) => ev.preventDefault(), { passive: false });
+document.addEventListener('wheel', (ev) => { if (ev.ctrlKey) ev.preventDefault(); }, { passive: false });
 canvas.addEventListener('pointermove', (ev) => {
   if (!touches.has(ev.pointerId)) return;
   touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
@@ -1403,6 +1409,10 @@ function frame() {
   const sc = sun.shadow.camera;
   sc.left = -30; sc.right = 30; sc.top = 30; sc.bottom = -30;
   sc.updateProjectionMatrix();
+
+  // The grid is for building: it fades out while playing.
+  const grid = backdrop.material.uniforms.uGrid;
+  grid.value += ((playing ? 0 : GRID_STRENGTH) - grid.value) * (1 - Math.exp(-dt * 10));
 
   if (won) {
     for (const item of items.values()) if (item.type === 'star') item.mesh.rotation.y += dt * 4;
