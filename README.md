@@ -20,7 +20,7 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 | Move a gadget | Drag it. The selected gadget gets a blue outline, same as the platform builder |
 | Delete | Right-click it, or select + `Delete` |
 | Selected-gadget menu | Floats above the selected gadget: **Rotate**, **Size**, **Flip** and 🗑. Every gadget shows every button; ones that don't apply are greyed out |
-| Rotate | The Rotate button or `R` steps clockwise through every way the gadget can turn and wraps around; `Shift+R` steps back. Skips turns that don't fit; works mid-drag too. Most gadgets turn 90° at a time; the pendulum cycles its swing (straight, out left, further left, further right, out right). |
+| Rotate | The Rotate button or `R` steps clockwise through every way the gadget can turn and wraps around; `Shift+R` steps back. Skips turns that don't fit; works mid-drag too. Most gadgets turn 90° at a time; the pendulum cycles its swing (straight, out right, out left). |
 | Flip | The Flip button or `F`: mirrors a ramp or conveyor left-right as it looks on screen, whatever way it's turned (a ramp slopes the other way, a conveyor runs the other way). Greyed out on other gadgets. Works mid-drag too |
 | Size | The Size button or `S` steps balls, blocks, ramps, dominoes, planks, buckets and seesaws through a set of sizes and wraps around; `Shift+S` steps back. Balls go ball → bowling ball → marble; blocks go 1×1 → 2×1 → 1×2 → 2×2 → ½×½ → 1×½ → ½×1; ramps go 1×1 → 2×1 → 2×2 → 1×2; dominoes change height only, 1½ → 2 → 1; planks change length only, 3 → 4 → 2; buckets grow to fit the marble → ball → bowling ball; seesaws go 3 wide → 4 wide → 3 shifted left → 3 shifted right. It keeps its bottom-left corner, sliding left and/or down when growing into something, and skips sizes that don't fit |
 | Nudge | Arrow keys: move the selected gadget ¼ cell |
@@ -49,7 +49,7 @@ The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, 
 | Seesaw | 3×¾ (Size: 4 wide, or 3 wide shifted half a cell left or right) | Plank on a hinge. Drop something on one end to fling the other. A shifted plank has a long end and a short end and starts tipped with the long end resting on the ground; the fulcrum stays put when you change its size |
 | Bouncer | 1×½ | Springy pad; marbles bounce off it |
 | Fan | 1×1 | Pushes anything up to 3 cells in the direction it faces. Rotate to aim it |
-| Pendulum | 1×3¼ | Heavy ball on a rope. Swings when hit. Rotate swings the ball out (two levels, 1½ and 2 across) left or right to start it off |
+| Pendulum | 1×3¼ | Heavy ball on a rope. Swings when hit. Rotate swings the ball out 1½ across, left or right, to start it off |
 | Plank | 3×¼ (Size: 4 or 2 long) | Loose board — bridges gaps, falls when pushed |
 | Bucket | 1×½ (Size: 1½×¾, 2½×1¼) | Catches a ball. Walls and floor are ¼ thick, and the inside is exactly a ball wide: ½ for the marble (the default), then 1 for the ball and 2 for the bowling ball as Size steps it up, with arms half the ball's height, growing evenly around its cavity so the cavity stays lined up under the ball. The inside stays free to drop things into |
 | Conveyor | 2×½ | Carries whatever sits on it, the way the arrow on its front points. Flip it to run the other way; Rotate to turn it |

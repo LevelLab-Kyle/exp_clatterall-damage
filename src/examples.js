@@ -86,9 +86,9 @@ const EXAMPLES = {
   },
 
   'Bell Ringer': {
-    blurb: 'A pendulum, pulled back two columns, swings into a bell and the star behind it.',
+    blurb: 'A pendulum, pulled back, swings into a bell and the star behind it.',
     items: [
-      ['pendulum', 6, 1, -2],
+      ['pendulum', 6, 1, -1],
       ['bell', 8, 2],
       ['star', 8, 1],
     ],

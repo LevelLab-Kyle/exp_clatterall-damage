@@ -144,7 +144,7 @@ const LEVELS = [
     goal: 'Hang a pendulum and pull the ball back (Rotate) to knock the dominoes over.',
     parts: { pendulum: 1 },
     items: [['domino', 7, 0], ['domino', 8, 0], ['domino', 9, 0], ['star', 10.5, 0]],
-    solution: [['pendulum', 6, 1, -2]],
+    solution: [['pendulum', 6, 1, -1]],
   },
   {
     name: 'Ding!',
@@ -226,7 +226,7 @@ const LEVELS = [
       ['ramp', 11, 0], ['star', 12.5, 0], ['ramp', 14, 0, 0, true],
       ['block', 15, 0], ['block', 15, 1],
     ],
-    solution: [['pendulum', 3, 5, -2], ['bouncer', 8, 0]],
+    solution: [['pendulum', 3, 5, -1], ['bouncer', 8, 0]],
   },
   {
     name: 'Heavy Delivery',

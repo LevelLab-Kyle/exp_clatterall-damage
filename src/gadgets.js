@@ -401,23 +401,25 @@ const GADGETS = {
     name: 'Pendulum',
     hint: 'swings',
     w: 1, h: 3.25,
-    // Rotate doesn't turn the pendulum; it swings the ball out, up to two
-    // levels either side (rot is -2..2). The rope is 2.5 long, so the ball can
-    // rest at 3-4-5 triangle points where its box lands exactly on the
-    // subgrid: straight down, 1.5 across / 2 down, or 2 across / 1.5 down.
+    // Rotate doesn't turn the pendulum; it swings the ball out one level
+    // either side (rot is -1..1). The rope is 2.5 long, so pulled out the ball
+    // rests at a 3-4-5 triangle point, 1.5 across / 2 down, where its box
+    // lands exactly on the subgrid.
     rotatable: true,
     // Rotate steps the ball through the swing levels and wraps around.
-    poses: [0, 1, 2, -2, -1].map((rot) => ({ rot, flip: false })),
+    poses: [0, 1, -1].map((rot) => ({ rot, flip: false })),
+    startRot: -1, // a new pendulum comes pulled partway back to the left
     pivotY: 3, // the rope hangs from the bottom of the bar (bar: y 3..3.25)
     rope: 2.5,
-    reach: [0, 1.5, 2], // how far across the ball sits at each swing level
+    reach: [0, 1.5], // how far across the ball sits at each swing level
     ballRadius: 0.5,
-    swing: { min: -2, max: 2 },
+    swing: { min: -1, max: 1 },
     idleFrame: true, // keep the rope drawn while editing
     ballRest(rot = 0) {
       // ↺ (positive rot) swings the ball out to the right, ↻ to the left,
       // the way a hanging ball moves when its bar turns that way.
-      const across = this.reach[Math.abs(rot)];
+      // Older saves may hold a level that's gone; use the furthest one left.
+      const across = this.reach[Math.min(Math.abs(rot), this.reach.length - 1)];
       const down = Math.sqrt(this.rope * this.rope - across * across);
       return new THREE.Vector3(Math.sign(rot) * across, this.pivotY - down, 0);
     },

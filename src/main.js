@@ -595,7 +595,9 @@ function beginNewDrag(type, ev) {
   eachMesh(ghost, (m) => { m.material = ghostMat; m.castShadow = false; });
   ghost.visible = false;
   scene.add(ghost);
-  drag = { kind: 'new', type, ghost, rot: 0, flip: false, cell: null };
+  const rot = GADGETS[type].startRot || 0;
+  GADGETS[type].applyRot?.({ mesh: ghost, rot });
+  drag = { kind: 'new', type, ghost, rot, flip: false, cell: null };
   try { ev.target.setPointerCapture(ev.pointerId); } catch {}
   updateDrag(ev);
 }
