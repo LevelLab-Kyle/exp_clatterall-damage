@@ -209,8 +209,6 @@ select:focus { outline: none; border-color: var(--color-accent); }
   border-bottom: var(--border-width) var(--border-style) var(--color-border);
 }
 
-.controls { display: flex; gap: var(--space-1); }
-
 .examples { display: flex; align-items: center; gap: var(--space-2); }
 
 /* Levels / Sandbox switch, and what shows beside it in each mode */
@@ -253,6 +251,26 @@ body.mode-sandbox .examples { flex: 1 1 auto; }
   box-shadow: var(--shadow-drop);
 }
 #view-tools > .button-icon:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Undo, Redo and Play/Stop float over the board's top-right corner, styled
+   like the view tools. Play is filled in the accent so it stands out; it
+   shows a stop square while playing. */
+#run-tools {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: flex;
+  gap: var(--space-2);
+}
+#run-tools > .button-icon {
+  background: var(--color-surface);
+  border: var(--border-width) var(--border-style) var(--color-border);
+  box-shadow: var(--shadow-drop);
+}
+#run-tools > .button-icon:disabled { opacity: 0.5; cursor: not-allowed; }
+#run-tools > #btn-play,
+#run-tools > #btn-play:hover { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-text); }
+#btn-play .icon-stop, body.playing #btn-play .icon-play { display: none; }
+body.playing #btn-play .icon-stop { display: block; }
 /* The lock is lit when on; off, its shackle swings open. */
 #btn-lock.on { color: var(--color-accent); }
 #btn-lock:not(.on) .shackle { transform: translate(-3px, -1px) rotate(-25deg); transform-origin: 11px 7px; }
@@ -514,6 +532,4 @@ button, select, #item-tools { touch-action: manipulation; }
   .level-info, .examples { order: 3; width: 100%; }
   .examples select { flex: 1 1 auto; }
   .examples label { display: none; }
-  .controls { order: 4; width: 100%; overflow-x: auto; }
-  .controls .button { padding: var(--space-1) var(--space-2); flex: 0 0 auto; }
 }

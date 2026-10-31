@@ -26,12 +26,6 @@
           <label for="examples" class="muted">Examples</label>
           <select id="examples"></select>
         </div>
-        <div class="controls">
-          <button id="btn-undo" class="button" title="Undo (Cmd/Ctrl+Z)" disabled>↶ Undo</button>
-          <button id="btn-redo" class="button" title="Redo (Shift+Cmd/Ctrl+Z)" disabled>↷ Redo</button>
-          <button id="btn-play" class="button button-accent">▶ Play</button>
-          <button id="btn-reset" class="button button-accent" hidden>↺ Reset</button>
-        </div>
       </header>
 
       <div id="stage">
@@ -49,13 +43,18 @@
             </div>
           </div>
         </div>
+        <div id="run-tools">
+          <button id="btn-undo" class="button-icon" title="Undo (Cmd/Ctrl+Z)" aria-label="Undo" disabled><svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3L2.5 6l3 3"/><path d="M2.5 6H10a3.5 3.5 0 0 1 0 7H7"/></svg></button>
+          <button id="btn-redo" class="button-icon" title="Redo (Shift+Cmd/Ctrl+Z)" aria-label="Redo" disabled><svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3l3 3-3 3"/><path d="M13.5 6H6a3.5 3.5 0 0 0 0 7h3"/></svg></button>
+          <button id="btn-play" class="button-icon" title="Play (Space)" aria-label="Play"><svg class="icon-play" viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M4.5 2.5v11l9-5.5z"/></svg><svg class="icon-stop" viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="1"/></svg></button>
+        </div>
         <div id="item-tools" hidden>
           <button id="tool-rotate" class="button-icon" title="Rotate (R)"><svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.5-3.6"/><path d="M12 1.5v3h-3"/></svg></button>
           <button id="tool-size" class="button-icon" title="Size (S)"><svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 14L14 2"/><path d="M9 2h5v5"/><path d="M7 14H2V9"/></svg></button>
           <button id="tool-flip" class="button-icon" title="Flip (F)"><svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v12"/><path d="M6 4L2 12h4z"/><path d="M10 4l4 8h-4z"/></svg></button>
           <button id="tool-delete" class="button-icon" title="Delete">🗑</button>
         </div>
-        <div id="play-badge">▶ Playing — press Reset to edit</div>
+        <div id="play-badge">▶ Playing — press Stop to edit</div>
         <div id="toast" hidden></div>
         <div id="win-card" class="card" hidden>
           <div class="win-star">⭐</div>

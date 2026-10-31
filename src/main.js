@@ -391,8 +391,8 @@ function startPlay() {
   canvas.classList.remove('hover');
   document.body.classList.add('playing');
   updateHistoryButtons();
-  btnPlay.hidden = true;
-  btnReset.hidden = false;
+  btnPlay.title = 'Stop (Space)';
+  btnPlay.setAttribute('aria-label', 'Stop');
 }
 
 function stopPlay() {
@@ -410,8 +410,8 @@ function stopPlay() {
   }
   document.body.classList.remove('playing');
   updateHistoryButtons();
-  btnPlay.hidden = false;
-  btnReset.hidden = true;
+  btnPlay.title = 'Play (Space)';
+  btnPlay.setAttribute('aria-label', 'Play');
   toast.hidden = true;
   hideWin();
 }
@@ -1086,7 +1086,6 @@ function rotateSelected(dir = 1) {
 // ---------------------------------------------------------------------------
 
 const btnPlay = document.getElementById('btn-play');
-const btnReset = document.getElementById('btn-reset');
 const btnClear = document.getElementById('btn-clear');
 const btnUndo = document.getElementById('btn-undo');
 const btnRedo = document.getElementById('btn-redo');
@@ -1101,8 +1100,8 @@ const toolFlip = document.getElementById('tool-flip');
 const toolDelete = document.getElementById('tool-delete');
 const trayList = document.getElementById('gadget-list');
 
-btnPlay.onclick = () => { armAudio(); startPlay(); };
-btnReset.onclick = stopPlay;
+// One button: Play while editing, Stop while playing.
+btnPlay.onclick = () => { if (playing) stopPlay(); else { armAudio(); startPlay(); } };
 // Clear asks first. In a level it takes back the player's parts and leaves
 // the level's own pieces.
 const clearConfirm = document.getElementById('clear-confirm');

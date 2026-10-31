@@ -27,10 +27,10 @@ Open `index.html` in a browser. No build step, no server, no internet needed.
 | Pan | Drag empty space or scroll (mouse); two fingers (touch). The view settles onto whole cells and never goes below the ground |
 | Zoom | `Ctrl`/`Cmd` + scroll, or pinch (trackpad or touch screen) |
 | Home | The ⌂ button in the board's top-left corner, or `H`: fit the whole contraption on screen. Also happens on load, when loading an example and when the window resizes |
-| Play / Reset | Buttons, or `Space` |
+| Play / Stop | One button in the board's top-right corner (it turns into Stop while playing), or `Space` |
 | Lock | The 🔒 button between Home and Clear, on by default: panning and scrolling only move left and right, so the view's height stays put. Click to unlock (the shackle opens); remembered per browser |
 | Clear | The 🗑 button next to Home. Asks "Are you sure?" first; undo brings it all back |
-| Undo / Redo | Buttons, or `Cmd/Ctrl+Z` / `Shift+Cmd/Ctrl+Z` (also `Ctrl+Y`). Covers placing, moving, rotating, deleting and Clear |
+| Undo / Redo | Buttons next to Play, or `Cmd/Ctrl+Z` / `Shift+Cmd/Ctrl+Z` (also `Ctrl+Y`). Covers placing, moving, rotating, deleting and Clear |
 
 Hit the ⭐ Star with anything to win. In a level, the level's own pieces can't be moved, and **Clear** only takes back the parts you placed.
 
@@ -62,7 +62,7 @@ The **Examples** menu in the top bar loads ready-made contraptions (Domino Run, 
 - **Plain HTML/CSS/JS.** Three.js and cannon-es are bundled once into `vendor/libs.js` (see `vendor/README.md` to upgrade them). Game code is classic `<script>` files, no modules, no bundler.
 - The world is a true 3D voxel grid (`x`, `y`, one cell deep in `z`). The view is a side-on perspective camera (30° lens), so pieces show a little depth.
 - The board is infinite. Ground is at `y = 0`; nothing can go below it.
-- Physics runs only while playing. Bodies are created from placed items on Play and thrown away on Reset. Dynamic bodies are locked to the X/Y plane.
+- Physics runs only while playing. Bodies are created from placed items on Play and thrown away on Stop. Dynamic bodies are locked to the X/Y plane.
 
 ### Files
 
